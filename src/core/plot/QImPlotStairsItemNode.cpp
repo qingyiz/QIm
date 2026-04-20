@@ -177,7 +177,17 @@ void QImPlotStairsItemNode::setStairsFlags(int flags)
  */
 void QImPlotStairsItemNode::setColor(const QColor& c)
 {
-    d_ptr->color = toImVec4(c);
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), color);
+    if (d_ptr->color) {
+        d_ptr->color->value() = color;
+        if (changed) {
+            d_ptr->color->mark_dirty();
+        }
+    } else {
+        d_ptr->color.emplace(color);
+        d_ptr->color->mark_dirty();
+    }
 }
 
 /**
@@ -217,6 +227,7 @@ bool QImPlotStairsItemNode::beginDraw()
     // 应用样式
     if (d->color && d->color->is_dirty()) {
         ImPlot::SetNextLineStyle(d->color->value());
+        d->color->mark_clean();
     }
 
     // 调用 ImPlot API
@@ -256,6 +267,7 @@ bool QImPlotStairsItemNode::beginDraw()
     }
     if (!d->color) {
         d->color = ImPlot::GetLastItemColor();
+        d->color->mark_clean();
     }
 
     return false;

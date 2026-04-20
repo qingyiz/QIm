@@ -188,7 +188,17 @@ void QImPlotLineItemNode::setLineFlags(int flags)
 
 void QImPlotLineItemNode::setColor(const QColor& c)
 {
-    d_ptr->color = toImVec4(c);
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), color);
+    if (d_ptr->color) {
+        d_ptr->color->value() = color;
+        if (changed) {
+            d_ptr->color->mark_dirty();
+        }
+    } else {
+        d_ptr->color.emplace(color);
+        d_ptr->color->mark_dirty();
+    }
 }
 
 QColor QImPlotLineItemNode::color() const
@@ -360,8 +370,12 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
     if (!series) {
         return false;
     }
-    if (d->color && (d->color->is_dirty() || d->lineWidth.is_dirty())) {
-        ImPlot::SetNextLineStyle(d->color->value(), d->lineWidth.value());
+    if ((d->color && d->color->is_dirty()) || d->lineWidth.is_dirty() || d->lineWidth.value() != 1.0f) {
+        ImPlot::SetNextLineStyle(d->color ? d->color->value() : IMPLOT_AUTO_COL, d->lineWidth.value());
+        if (d->color && d->color->is_dirty()) {
+            d->color->mark_clean();
+        }
+        d->lineWidth.mark_clean();
     }
     if (series->isContiguous()) {
         if (series->xRawData()) {
@@ -403,6 +417,7 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
     if (!d->color) {
         // 一般是首次渲染，且没设定颜色，这时是implot给的默认颜色，把这个默认颜色获取到
         d->color = ImPlot::GetLastItemColor();
+        d->color->mark_clean();
     }
     // 绘图之后，更新状态
 

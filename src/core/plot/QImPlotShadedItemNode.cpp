@@ -257,8 +257,20 @@ QColor QImPlotShadedItemNode::color() const
  */
 void QImPlotShadedItemNode::setColor(const QColor& c)
 {
-    d_ptr->color = toImVec4(c);
-    emit colorChanged(c);
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), color);
+    if (d_ptr->color) {
+        d_ptr->color->value() = color;
+        if (changed) {
+            d_ptr->color->mark_dirty();
+        }
+    } else {
+        d_ptr->color.emplace(color);
+        d_ptr->color->mark_dirty();
+    }
+    if (changed) {
+        emit colorChanged(c);
+    }
 }
 
 /**
@@ -342,6 +354,7 @@ bool QImPlotShadedItemNode::beginDraw()
     // Apply style
     if (d->color && d->color->is_dirty()) {
         ImPlot::SetNextLineStyle(d->color->value());
+        d->color->mark_clean();
     }
 
     // Determine if we're in two-line mode
@@ -472,6 +485,7 @@ bool QImPlotShadedItemNode::beginDraw()
     if (!d->color) {
         // First render without explicit color, get default color from ImPlot
         d->color = ImPlot::GetLastItemColor();
+        d->color->mark_clean();
     }
 
     return false;

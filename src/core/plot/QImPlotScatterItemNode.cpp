@@ -415,8 +415,20 @@ QColor QImPlotScatterItemNode::color() const
  */
 void QImPlotScatterItemNode::setColor(const QColor& c)
 {
-    d_ptr->color = toImVec4(c);
-    emit colorChanged(c);
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), color);
+    if (d_ptr->color) {
+        d_ptr->color->value() = color;
+        if (changed) {
+            d_ptr->color->mark_dirty();
+        }
+    } else {
+        d_ptr->color.emplace(color);
+        d_ptr->color->mark_dirty();
+    }
+    if (changed) {
+        emit colorChanged(c);
+    }
 }
 
 /**
@@ -441,11 +453,17 @@ bool QImPlotScatterItemNode::beginDraw()
     // 准备标记样式
     ImPlotMarker marker = d->markerShape;
     float size          = d->markerSize.value();
-    ImVec4 col          = d->color.has_value() ? d->color->value() : ImVec4(0, 0, 0, -1);
+    ImVec4 col          = d->color.has_value() ? d->color->value() : IMPLOT_AUTO_COL;
+    ImVec4 fill         = d->markerFill ? col : ImVec4(0, 0, 0, 0);
 
     // 应用样式
-    if (d->color && (d->color->is_dirty() || d->markerSize.is_dirty())) {
-        ImPlot::SetNextMarkerStyle(marker, size, col, IMPLOT_AUTO, d->markerFill ? col : ImVec4(0, 0, 0, 0));
+    if ((d->color && d->color->is_dirty()) || d->markerSize.is_dirty() || d->markerSize.value() != 4.0f ||
+        d->markerShape != ImPlotMarker_Circle || !d->markerFill) {
+        ImPlot::SetNextMarkerStyle(marker, size, fill, IMPLOT_AUTO, col);
+        if (d->color && d->color->is_dirty()) {
+            d->color->mark_clean();
+        }
+        d->markerSize.mark_clean();
     }
 
     if (series->isContiguous()) {
@@ -485,6 +503,7 @@ bool QImPlotScatterItemNode::beginDraw()
     if (!d->color) {
         // 一般是首次渲染，且没设定颜色，这时是implot给的默认颜色，把这个默认颜色获取到
         d->color = ImPlot::GetLastItemColor();
+        d->color->mark_clean();
     }
     // 绘图之后，更新状态
 

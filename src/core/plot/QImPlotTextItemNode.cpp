@@ -173,8 +173,16 @@ void QImPlotTextItemNode::setTextFlags(int flags)
 
 void QImPlotTextItemNode::setColor(const QColor& color)
 {
-    d_ptr->color = toImVec4(color);
-    Q_EMIT colorChanged(color);
+    const ImVec4 imColor = toImVec4(color);
+    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), imColor);
+    if (d_ptr->color) {
+        d_ptr->color->value() = imColor;
+    } else {
+        d_ptr->color.emplace(imColor);
+    }
+    if (changed) {
+        Q_EMIT colorChanged(color);
+    }
 }
 
 QColor QImPlotTextItemNode::color() const
