@@ -349,12 +349,22 @@ void MainWindow::drawPlot2D()
         verticalLines->setLabel("Vertical Guides");
         verticalLines->setValues(xLineValues);
         verticalLines->setColor(Qt::darkRed);
+        verticalLines->setLineStyle(Qt::DashLine);
+        verticalLines->setLineWidth(2.0f);
+        verticalLines->setText("Threshold");
+        verticalLines->setTextPosition(QIM::QImPlotInfLinesItemNode::TextPosition::Minimum);
+        verticalLines->setTextOffset(QIM::QImPlotInfLinesItemNode::TextOffset::Positive);
 
         QIM::QImPlotInfLinesItemNode* horizontalLines = new QIM::QImPlotInfLinesItemNode(plot9);
         horizontalLines->setLabel("Horizontal Guides");
         horizontalLines->setValues(yLineValues);
         horizontalLines->setHorizontal(true);
         horizontalLines->setColor(Qt::darkGreen);
+        horizontalLines->setLineStyle(Qt::DotLine);
+        horizontalLines->setLineWidth(2.5f);
+        horizontalLines->setText("Baseline");
+        horizontalLines->setTextPosition(QIM::QImPlotInfLinesItemNode::TextPosition::Maximum);
+        horizontalLines->setTextOffset(QIM::QImPlotInfLinesItemNode::TextOffset::Negative);
 
         QIM::QImPlotTextItemNode* text1 = new QIM::QImPlotTextItemNode(plot9);
         text1->setText("Peak Area");

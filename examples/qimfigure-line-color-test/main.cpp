@@ -10,11 +10,13 @@
 #include <QRandomGenerator>
 #include <QSignalBlocker>
 #include <QSurfaceFormat>
+#include <QLineEdit>
 #include <QVBoxLayout>
 #include <QWidget>
 #include "QImFigureWidget.h"
 #include "implot.h"
 #include "plot/QImPlotAxisInfo.h"
+#include "plot/QImPlotInfLinesItemNode.h"
 #include "plot/QImPlotLineItemNode.h"
 #include "plot/QImPlotNode.h"
 
@@ -41,7 +43,7 @@ public:
         QLabel* tip = new QLabel(
             "This example verifies line color, line width, marker shape, marker size, marker outline width, "
             "marker fill color, marker outline color, and line style.\n"
-            "Line styles are implemented here on top of ImPlot draw lists for validation.",
+            "Left: QImPlotLineItemNode. Right: QImPlotInfLinesItemNode with shared line appearance and explicit text controls.",
             central);
         tip->setWordWrap(true);
         root->addWidget(tip);
@@ -50,9 +52,14 @@ public:
                                        [this](const QColor& color) {
                                            if (m_line) {
                                                m_line->setColor(color);
-                                               requestFigureRender();
-                                           }
-                                           updateSummary();
+                                            }
+                                            for (auto* infLine : m_infLines) {
+                                                if (infLine) {
+                                                    infLine->setColor(color);
+                                                }
+                                            }
+                                            requestFigureRender();
+                                            updateSummary();
                                        },
                                        true));
         root->addLayout(createColorRow("Marker Fill",
@@ -123,12 +130,33 @@ public:
         styleRow->addStretch();
         root->addLayout(styleRow);
 
+        QHBoxLayout* annotationRow = new QHBoxLayout();
+        annotationRow->addWidget(new QLabel("InfLines Text", central));
+        m_annotationEdit = new QLineEdit(central);
+        annotationRow->addWidget(m_annotationEdit, 1);
+
+        annotationRow->addWidget(new QLabel("Text Position", central));
+        m_annotationPositionCombo = new QComboBox(central);
+        addTextPositionItem("Minimum", QIM::QImPlotInfLinesItemNode::TextPosition::Minimum);
+        addTextPositionItem("Center", QIM::QImPlotInfLinesItemNode::TextPosition::Center);
+        addTextPositionItem("Maximum", QIM::QImPlotInfLinesItemNode::TextPosition::Maximum);
+        annotationRow->addWidget(m_annotationPositionCombo);
+
+        annotationRow->addWidget(new QLabel("Text Offset", central));
+        m_annotationOffsetCombo = new QComboBox(central);
+        addTextOffsetItem("Negative (Left/Bottom)", QIM::QImPlotInfLinesItemNode::TextOffset::Negative);
+        addTextOffsetItem("Center", QIM::QImPlotInfLinesItemNode::TextOffset::Center);
+        addTextOffsetItem("Positive (Right/Top)", QIM::QImPlotInfLinesItemNode::TextOffset::Positive);
+        annotationRow->addWidget(m_annotationOffsetCombo);
+        annotationRow->addStretch();
+        root->addLayout(annotationRow);
+
         m_summaryLabel = new QLabel(central);
         root->addWidget(m_summaryLabel);
 
         m_figure = new QIM::QImFigureWidget(central);
         m_figure->setRenderMode(QIM::QImWidget::RenderOnDemand);
-        m_figure->setSubplotGrid(1, 1);
+        m_figure->setSubplotGrid(1, 2);
         root->addWidget(m_figure, 1);
 
         setCentralWidget(central);
@@ -142,8 +170,13 @@ public:
                 [this](double value) {
                     if (m_line) {
                         m_line->setLineWidth(static_cast< float >(value));
-                        requestFigureRender();
                     }
+                    for (auto* infLine : m_infLines) {
+                        if (infLine) {
+                            infLine->setLineWidth(static_cast< float >(value));
+                        }
+                    }
+                    requestFigureRender();
                     updateSummary();
                 });
         connect(m_lineStyleCombo,
@@ -152,8 +185,13 @@ public:
                 [this](int index) {
                     if (m_line) {
                         m_line->setLineStyle(m_lineStyleCombo->itemData(index).toInt());
-                        requestFigureRender();
                     }
+                    for (auto* infLine : m_infLines) {
+                        if (infLine) {
+                            infLine->setLineStyle(m_lineStyleCombo->itemData(index).toInt());
+                        }
+                    }
+                    requestFigureRender();
                     updateSummary();
                 });
         connect(m_markerShapeCombo,
@@ -192,6 +230,43 @@ public:
             requestFigureRender();
             updateSummary();
         });
+        connect(m_annotationEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+            for (auto* infLine : m_infLines) {
+                if (infLine) {
+                    infLine->setText(text);
+                }
+            }
+            requestFigureRender();
+            updateSummary();
+        });
+        connect(m_annotationPositionCombo,
+                qOverload< int >(&QComboBox::currentIndexChanged),
+                this,
+                [this](int index) {
+                    const auto position = static_cast< QIM::QImPlotInfLinesItemNode::TextPosition >(
+                        m_annotationPositionCombo->itemData(index).toInt());
+                    for (auto* infLine : m_infLines) {
+                        if (infLine) {
+                            infLine->setTextPosition(position);
+                        }
+                    }
+                    requestFigureRender();
+                    updateSummary();
+                });
+        connect(m_annotationOffsetCombo,
+                qOverload< int >(&QComboBox::currentIndexChanged),
+                this,
+                [this](int index) {
+                    const auto offset =
+                        static_cast< QIM::QImPlotInfLinesItemNode::TextOffset >(m_annotationOffsetCombo->itemData(index).toInt());
+                    for (auto* infLine : m_infLines) {
+                        if (infLine) {
+                            infLine->setTextOffset(offset);
+                        }
+                    }
+                    requestFigureRender();
+                    updateSummary();
+                });
     }
 
 private:
@@ -231,14 +306,25 @@ private:
         m_lineStyleCombo->addItem(text, style);
     }
 
+    void addTextPositionItem(const QString& text, QIM::QImPlotInfLinesItemNode::TextPosition position)
+    {
+        m_annotationPositionCombo->addItem(text, static_cast< int >(position));
+    }
+
+    void addTextOffsetItem(const QString& text, QIM::QImPlotInfLinesItemNode::TextOffset offset)
+    {
+        m_annotationOffsetCombo->addItem(text, static_cast< int >(offset));
+    }
+
     void setupPlot()
     {
         QIM::QImPlotNode* plot = m_figure->createPlotNode();
-        if (!plot) {
+        QIM::QImPlotNode* infPlot = m_figure->createPlotNode();
+        if (!plot || !infPlot) {
             return;
         }
 
-        plot->setTitle("Line Appearance Update Test");
+        plot->setTitle("Line Appearance Test");
         plot->setLegendEnabled(true);
         plot->x1Axis()->setLabel("x");
         plot->y1Axis()->setLabel("y");
@@ -251,6 +337,36 @@ private:
         }
 
         m_line = plot->addLine(x, y, "appearance test line");
+
+        infPlot->setTitle("InfLines Style + Annotation Test");
+        infPlot->setLegendEnabled(true);
+        infPlot->x1Axis()->setLabel("x");
+        infPlot->y1Axis()->setLabel("y");
+
+        std::vector< double > xInf(200);
+        std::vector< double > yInf(200);
+        for (int i = 0; i < static_cast< int >(xInf.size()); ++i) {
+            xInf[ i ] = i * 0.05;
+            yInf[ i ] = 0.8 * std::sin(xInf[ i ]) + 0.3 * std::cos(xInf[ i ] * 2.0);
+        }
+        infPlot->addLine(xInf, yInf, "reference curve");
+
+        auto* vertical = new QIM::QImPlotInfLinesItemNode(infPlot);
+        vertical->setLabel("vertical guides");
+        vertical->setValues(std::vector< double > { 1.5, 4.2, 7.4 });
+        vertical->setText("Guide");
+        vertical->setTextPosition(QIM::QImPlotInfLinesItemNode::TextPosition::Minimum);
+        vertical->setTextOffset(QIM::QImPlotInfLinesItemNode::TextOffset::Positive);
+
+        auto* horizontal = new QIM::QImPlotInfLinesItemNode(infPlot);
+        horizontal->setLabel("horizontal guides");
+        horizontal->setValues(std::vector< double > { -0.5, 0.0, 0.8 });
+        horizontal->setHorizontal(true);
+        horizontal->setText("Guide");
+        horizontal->setTextPosition(QIM::QImPlotInfLinesItemNode::TextPosition::Maximum);
+        horizontal->setTextOffset(QIM::QImPlotInfLinesItemNode::TextOffset::Negative);
+
+        m_infLines = { vertical, horizontal };
         applyDefaultAppearance();
     }
 
@@ -267,6 +383,14 @@ private:
         m_line->setMarkerWeight(1.5f);
         m_line->setMarkerFillColor(QColor(255, 215, 0));
         m_line->setMarkerOutlineColor(QColor(40, 40, 40));
+        for (auto* infLine : m_infLines) {
+            if (!infLine) {
+                continue;
+            }
+            infLine->setColor(QColor(35, 115, 210));
+            infLine->setLineStyle(Qt::DashLine);
+            infLine->setLineWidth(2.0f);
+        }
     }
 
     void syncControlsFromLine()
@@ -280,10 +404,30 @@ private:
         QSignalBlocker blockShape(m_markerShapeCombo);
         QSignalBlocker blockSize(m_markerSizeSpin);
         QSignalBlocker blockWeight(m_markerWeightSpin);
+        QSignalBlocker blockAnnotationEdit(m_annotationEdit);
+        QSignalBlocker blockAnnotationPos(m_annotationPositionCombo);
+        QSignalBlocker blockAnnotationOffset(m_annotationOffsetCombo);
 
         m_lineWidthSpin->setValue(m_line->lineWidth());
         m_markerSizeSpin->setValue(m_line->markerSize());
         m_markerWeightSpin->setValue(m_line->markerWeight());
+        if (!m_infLines.empty() && m_infLines.front()) {
+            m_annotationEdit->setText(m_infLines.front()->text());
+            const int annotationPosition = static_cast< int >(m_infLines.front()->textPosition());
+            for (int i = 0; i < m_annotationPositionCombo->count(); ++i) {
+                if (m_annotationPositionCombo->itemData(i).toInt() == annotationPosition) {
+                    m_annotationPositionCombo->setCurrentIndex(i);
+                    break;
+                }
+            }
+            const int annotationOffset = static_cast< int >(m_infLines.front()->textOffset());
+            for (int i = 0; i < m_annotationOffsetCombo->count(); ++i) {
+                if (m_annotationOffsetCombo->itemData(i).toInt() == annotationOffset) {
+                    m_annotationOffsetCombo->setCurrentIndex(i);
+                    break;
+                }
+            }
+        }
 
         const int marker = m_line->markerShape();
         for (int i = 0; i < m_markerShapeCombo->count(); ++i) {
@@ -316,7 +460,13 @@ private:
         }
 
         m_summaryLabel->setText(
-            QString("Line color: %1 | style: %2 | width: %3 | marker: %4 | size: %5 | weight: %6 | fill: %7 | outline: %8")
+            QString("Left subplot tests line + marker appearance. Right subplot tests InfLines style + text placement. "
+                    "Vertical guide text is rendered vertically; horizontal guide text stays horizontal. "
+                    "Text=\"%1\" | Position=%2 | Offset=%3 | "
+                    "Line: color=%4 | style=%5 | width=%6 | marker=%7 | size=%8 | weight=%9 | fill=%10 | outline=%11")
+                .arg(m_annotationEdit ? m_annotationEdit->text() : QString())
+                .arg(m_annotationPositionCombo ? m_annotationPositionCombo->currentText() : QString())
+                .arg(m_annotationOffsetCombo ? m_annotationOffsetCombo->currentText() : QString())
                 .arg(m_line->color().name(QColor::HexRgb))
                 .arg(m_lineStyleCombo->currentText())
                 .arg(m_line->lineWidth(), 0, 'f', 1)
@@ -329,12 +479,16 @@ private:
 
     QIM::QImFigureWidget* m_figure { nullptr };
     QIM::QImPlotLineItemNode* m_line { nullptr };
+    std::vector< QIM::QImPlotInfLinesItemNode* > m_infLines;
     QLabel* m_summaryLabel { nullptr };
     QDoubleSpinBox* m_lineWidthSpin { nullptr };
     QComboBox* m_lineStyleCombo { nullptr };
     QComboBox* m_markerShapeCombo { nullptr };
     QDoubleSpinBox* m_markerSizeSpin { nullptr };
     QDoubleSpinBox* m_markerWeightSpin { nullptr };
+    QLineEdit* m_annotationEdit { nullptr };
+    QComboBox* m_annotationPositionCombo { nullptr };
+    QComboBox* m_annotationOffsetCombo { nullptr };
 };
 }  // namespace
 
