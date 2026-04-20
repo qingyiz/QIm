@@ -18,6 +18,15 @@ class QIM_CORE_API QImPlotLineItemNode : public QImPlotItemNode
     Q_PROPERTY(bool skipNaN READ isSkipNaN WRITE setSkipNaN NOTIFY lineFlagChanged)
     Q_PROPERTY(bool clippingEnabled READ isClippingEnabled WRITE setClippingEnabled NOTIFY lineFlagChanged)
     Q_PROPERTY(bool shaded READ isShaded WRITE setShaded NOTIFY lineFlagChanged)
+    Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
+    Q_PROPERTY(int lineStyle READ lineStyle WRITE setLineStyle NOTIFY lineStyleChanged)
+    Q_PROPERTY(float lineWidth READ lineWidth WRITE setLineWidth NOTIFY lineWidthChanged)
+    Q_PROPERTY(int markerShape READ markerShape WRITE setMarkerShape NOTIFY markerShapeChanged)
+    Q_PROPERTY(float markerSize READ markerSize WRITE setMarkerSize NOTIFY markerSizeChanged)
+    Q_PROPERTY(float markerWeight READ markerWeight WRITE setMarkerWeight NOTIFY markerWeightChanged)
+    Q_PROPERTY(QColor markerFillColor READ markerFillColor WRITE setMarkerFillColor NOTIFY markerFillColorChanged)
+    Q_PROPERTY(
+        QColor markerOutlineColor READ markerOutlineColor WRITE setMarkerOutlineColor NOTIFY markerOutlineColorChanged)
 public:
     QImPlotLineItemNode(QObject* par = nullptr);
     ~QImPlotLineItemNode();
@@ -68,6 +77,20 @@ public:
     //===============================================================
     void setColor(const QColor& c);
     QColor color() const;
+    void setLineStyle(int style);
+    int lineStyle() const;
+    void setLineWidth(float width);
+    float lineWidth() const;
+    void setMarkerShape(int shape);
+    int markerShape() const;
+    void setMarkerSize(float size);
+    float markerSize() const;
+    void setMarkerWeight(float weight);
+    float markerWeight() const;
+    void setMarkerFillColor(const QColor& color);
+    QColor markerFillColor() const;
+    void setMarkerOutlineColor(const QColor& color);
+    QColor markerOutlineColor() const;
     //===============================================================
     // name
     //===============================================================
@@ -75,6 +98,14 @@ public:
     bool isAdaptiveSampling() const;
 Q_SIGNALS:
     void lineFlagChanged();
+    void colorChanged(const QColor& color);
+    void lineStyleChanged(int style);
+    void lineWidthChanged(float width);
+    void markerShapeChanged(int shape);
+    void markerSizeChanged(float size);
+    void markerWeightChanged(float weight);
+    void markerFillColorChanged(const QColor& color);
+    void markerOutlineColorChanged(const QColor& color);
 
 protected:
     virtual bool beginDraw() override;

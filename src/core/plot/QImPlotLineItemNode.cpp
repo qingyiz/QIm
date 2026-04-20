@@ -8,6 +8,7 @@
 #include "QImTrackedValue.hpp"
 #include "QtImGuiUtils.h"
 #include <QDebug>
+#include <QPen>
 namespace QIM
 {
 // ImPlotMarker_None   ->   无标记
@@ -33,10 +34,142 @@ public:
     bool isAdaptiveSampling { true };
     int downsampleThreshold { 20000 };
     ImPlotLineFlags lineFlags { ImPlotLineFlags_None };
-    std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > color;  ///< 颜色
-    QImTrackedValue< float > lineWidth { 1.0f };                                  ///< 线宽
+    Qt::PenStyle lineStyle { Qt::SolidLine };                                                ///< 线样式
+    std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > color;             ///< 颜色
+    QImTrackedValue< float > lineWidth { 1.0f };                                             ///< 线宽
+    ImPlotMarker markerShape { ImPlotMarker_None };                                           ///< 点形状
+    QImTrackedValue< float > markerSize { 4.0f };                                            ///< 点大小
+    QImTrackedValue< float > markerWeight { 1.0f };                                          ///< 点边框宽度
+    std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > markerFillColor;   ///< 点填充颜色
+    std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > markerOutlineColor;  ///< 点轮廓颜色
     bool isPlotItemVisible;
 };
+
+namespace
+{
+std::vector< float > patternForPenStyle(Qt::PenStyle style, float width)
+{
+    const float unit = std::max(width, 1.0f);
+    switch (style) {
+    case Qt::DashLine:
+        return { 4.0f * unit, 2.0f * unit };
+    case Qt::DotLine:
+        return { 1.0f * unit, 1.5f * unit };
+    case Qt::DashDotLine:
+        return { 4.0f * unit, 2.0f * unit, 1.0f * unit, 2.0f * unit };
+    case Qt::DashDotDotLine:
+        return { 4.0f * unit, 2.0f * unit, 1.0f * unit, 2.0f * unit, 1.0f * unit, 2.0f * unit };
+    default:
+        return {};
+    }
+}
+
+bool needsCustomLineRendering(Qt::PenStyle style)
+{
+    return style != Qt::SolidLine;
+}
+
+void drawStyledSegment(
+    ImDrawList* drawList,
+    const ImVec2& p1,
+    const ImVec2& p2,
+    Qt::PenStyle style,
+    float width,
+    ImU32 color
+)
+{
+    if (style == Qt::NoPen) {
+        return;
+    }
+    const float dx = p2.x - p1.x;
+    const float dy = p2.y - p1.y;
+    const float length = std::sqrt(dx * dx + dy * dy);
+    if (length <= 0.0f) {
+        return;
+    }
+    const std::vector< float > pattern = patternForPenStyle(style, width);
+    if (pattern.empty()) {
+        drawList->AddLine(p1, p2, color, width);
+        return;
+    }
+
+    const ImVec2 dir(dx / length, dy / length);
+    float offset = 0.0f;
+    bool draw = true;
+    std::size_t patternIndex = 0;
+    while (offset < length) {
+        const float step = pattern[ patternIndex % pattern.size() ];
+        const float next = std::min(length, offset + step);
+        if (draw && next > offset) {
+            const ImVec2 a(p1.x + dir.x * offset, p1.y + dir.y * offset);
+            const ImVec2 b(p1.x + dir.x * next, p1.y + dir.y * next);
+            drawList->AddLine(a, b, color, width);
+        }
+        draw = !draw;
+        offset = next;
+        ++patternIndex;
+    }
+}
+
+void drawCustomStyledLine(
+    QImAbstractXYDataSeries* series,
+    ImPlotLineFlags flags,
+    Qt::PenStyle style,
+    float width,
+    ImU32 color,
+    QImPlotAxisId xAxisId,
+    QImPlotAxisId yAxisId
+)
+{
+    if (!series || series->size() < 2 || style == Qt::SolidLine || style == Qt::NoPen) {
+        return;
+    }
+
+    ImDrawList* drawList = ImPlot::GetPlotDrawList();
+    if (!drawList) {
+        return;
+    }
+
+    std::vector< ImPlotPoint > currentPoints;
+    auto flushPoints = [&](bool closeLoop) {
+        if (currentPoints.size() < 2) {
+            currentPoints.clear();
+            return;
+        }
+        for (std::size_t i = 1; i < currentPoints.size(); ++i) {
+            const ImVec2 p1 =
+                ImPlot::PlotToPixels(currentPoints[ i - 1 ], static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            const ImVec2 p2 =
+                ImPlot::PlotToPixels(currentPoints[ i ], static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            drawStyledSegment(drawList, p1, p2, style, width, color);
+        }
+        if (closeLoop) {
+            const ImVec2 p1 =
+                ImPlot::PlotToPixels(currentPoints.back(), static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            const ImVec2 p2 =
+                ImPlot::PlotToPixels(currentPoints.front(), static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            drawStyledSegment(drawList, p1, p2, style, width, color);
+        }
+        currentPoints.clear();
+    };
+
+    const bool skipNaN = (flags & ImPlotLineFlags_SkipNaN) != 0;
+    const bool loop = (flags & ImPlotLineFlags_Loop) != 0;
+    for (int i = 0; i < series->size(); ++i) {
+        const double x = series->xValue(i);
+        const double y = series->yValue(i);
+        const bool valid = std::isfinite(x) && std::isfinite(y);
+        if (!valid) {
+            if (!skipNaN) {
+                flushPoints(false);
+            }
+            continue;
+        }
+        currentPoints.emplace_back(x, y);
+    }
+    flushPoints(loop);
+}
+}  // namespace
 
 QImPlotLineItemNode::PrivateData::PrivateData(QImPlotLineItemNode* p) : q_ptr(p)
 {
@@ -199,11 +332,137 @@ void QImPlotLineItemNode::setColor(const QColor& c)
         d_ptr->color.emplace(color);
         d_ptr->color->mark_dirty();
     }
+    if (changed) {
+        emit colorChanged(c);
+    }
 }
 
 QColor QImPlotLineItemNode::color() const
 {
     return (d_ptr->color.has_value()) ? toQColor(d_ptr->color->value()) : QColor();
+}
+
+void QImPlotLineItemNode::setLineStyle(int style)
+{
+    QIM_D(d);
+    const Qt::PenStyle penStyle = static_cast< Qt::PenStyle >(style);
+    if (d->lineStyle != penStyle) {
+        d->lineStyle = penStyle;
+        emit lineStyleChanged(style);
+    }
+}
+
+int QImPlotLineItemNode::lineStyle() const
+{
+    QIM_DC(d);
+    return d->lineStyle;
+}
+
+void QImPlotLineItemNode::setLineWidth(float width)
+{
+    QIM_D(d);
+    d->lineWidth = width;
+    if (d->lineWidth.is_dirty()) {
+        emit lineWidthChanged(width);
+    }
+}
+
+float QImPlotLineItemNode::lineWidth() const
+{
+    QIM_DC(d);
+    return d->lineWidth.value();
+}
+
+void QImPlotLineItemNode::setMarkerShape(int shape)
+{
+    QIM_D(d);
+    const ImPlotMarker marker = static_cast< ImPlotMarker >(shape);
+    if (d->markerShape != marker) {
+        d->markerShape = marker;
+        emit markerShapeChanged(shape);
+    }
+}
+
+int QImPlotLineItemNode::markerShape() const
+{
+    QIM_DC(d);
+    return d->markerShape;
+}
+
+void QImPlotLineItemNode::setMarkerSize(float size)
+{
+    QIM_D(d);
+    d->markerSize = size;
+    if (d->markerSize.is_dirty()) {
+        emit markerSizeChanged(size);
+    }
+}
+
+float QImPlotLineItemNode::markerSize() const
+{
+    QIM_DC(d);
+    return d->markerSize.value();
+}
+
+void QImPlotLineItemNode::setMarkerWeight(float weight)
+{
+    QIM_D(d);
+    d->markerWeight = weight;
+    if (d->markerWeight.is_dirty()) {
+        emit markerWeightChanged(weight);
+    }
+}
+
+float QImPlotLineItemNode::markerWeight() const
+{
+    QIM_DC(d);
+    return d->markerWeight.value();
+}
+
+void QImPlotLineItemNode::setMarkerFillColor(const QColor& color)
+{
+    const bool changed = !d_ptr->markerFillColor ||
+                         !ImVecComparator< ImVec4 > {}(d_ptr->markerFillColor->value(), toImVec4(color));
+    if (d_ptr->markerFillColor) {
+        d_ptr->markerFillColor->value() = toImVec4(color);
+        if (changed) {
+            d_ptr->markerFillColor->mark_dirty();
+        }
+    } else {
+        d_ptr->markerFillColor.emplace(toImVec4(color));
+        d_ptr->markerFillColor->mark_dirty();
+    }
+    if (changed) {
+        emit markerFillColorChanged(color);
+    }
+}
+
+QColor QImPlotLineItemNode::markerFillColor() const
+{
+    return d_ptr->markerFillColor ? toQColor(d_ptr->markerFillColor->value()) : QColor();
+}
+
+void QImPlotLineItemNode::setMarkerOutlineColor(const QColor& color)
+{
+    const bool changed = !d_ptr->markerOutlineColor ||
+                         !ImVecComparator< ImVec4 > {}(d_ptr->markerOutlineColor->value(), toImVec4(color));
+    if (d_ptr->markerOutlineColor) {
+        d_ptr->markerOutlineColor->value() = toImVec4(color);
+        if (changed) {
+            d_ptr->markerOutlineColor->mark_dirty();
+        }
+    } else {
+        d_ptr->markerOutlineColor.emplace(toImVec4(color));
+        d_ptr->markerOutlineColor->mark_dirty();
+    }
+    if (changed) {
+        emit markerOutlineColorChanged(color);
+    }
+}
+
+QColor QImPlotLineItemNode::markerOutlineColor() const
+{
+    return d_ptr->markerOutlineColor ? toQColor(d_ptr->markerOutlineColor->value()) : QColor();
 }
 
 void QImPlotLineItemNode::setAdaptivesSampling(bool on)
@@ -370,12 +629,31 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
     if (!series) {
         return false;
     }
-    if ((d->color && d->color->is_dirty()) || d->lineWidth.is_dirty() || d->lineWidth.value() != 1.0f) {
-        ImPlot::SetNextLineStyle(d->color ? d->color->value() : IMPLOT_AUTO_COL, d->lineWidth.value());
+    const bool customStyledLine = needsCustomLineRendering(d->lineStyle);
+    if ((d->color && d->color->is_dirty()) || d->lineWidth.is_dirty() || d->lineWidth.value() != 1.0f || customStyledLine) {
+        const float implotLineWidth = (customStyledLine || d->lineStyle == Qt::NoPen) ? 0.0f : d->lineWidth.value();
+        ImPlot::SetNextLineStyle(d->color ? d->color->value() : IMPLOT_AUTO_COL, implotLineWidth);
         if (d->color && d->color->is_dirty()) {
             d->color->mark_clean();
         }
         d->lineWidth.mark_clean();
+    }
+    if (d->markerShape != ImPlotMarker_None || d->markerSize.is_dirty() || d->markerSize.value() != 4.0f ||
+        d->markerWeight.is_dirty() || d->markerWeight.value() != 1.0f || d->markerFillColor ||
+        d->markerOutlineColor) {
+        ImPlot::SetNextMarkerStyle(d->markerShape,
+                                   d->markerSize.value(),
+                                   d->markerFillColor ? d->markerFillColor->value() : IMPLOT_AUTO_COL,
+                                   d->markerWeight.value(),
+                                   d->markerOutlineColor ? d->markerOutlineColor->value() : IMPLOT_AUTO_COL);
+        d->markerSize.mark_clean();
+        d->markerWeight.mark_clean();
+        if (d->markerFillColor && d->markerFillColor->is_dirty()) {
+            d->markerFillColor->mark_clean();
+        }
+        if (d->markerOutlineColor && d->markerOutlineColor->is_dirty()) {
+            d->markerOutlineColor->mark_clean();
+        }
     }
     if (series->isContiguous()) {
         if (series->xRawData()) {
@@ -418,6 +696,17 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
         // 一般是首次渲染，且没设定颜色，这时是implot给的默认颜色，把这个默认颜色获取到
         d->color = ImPlot::GetLastItemColor();
         d->color->mark_clean();
+    }
+    if (customStyledLine) {
+        ImPlot::PushPlotClipRect();
+        drawCustomStyledLine(series,
+                             d->lineFlags,
+                             d->lineStyle,
+                             d->lineWidth.value(),
+                             plotItem ? plotItem->Color : ImGui::ColorConvertFloat4ToU32(d->color->value()),
+                             xAxisId(),
+                             yAxisId());
+        ImPlot::PopPlotClipRect();
     }
     // 绘图之后，更新状态
 
