@@ -643,6 +643,11 @@ void QImPlotNode::addLine(QImPlotLineItemNode* lineItem)
     addPlotItem(lineItem);
 }
 
+void QImPlotNode::addMarkerAnnotations(QImPlotMarkerAnnotationItemNode* item)
+{
+    addPlotItem(item);
+}
+
 QImPlotLegendNode* QImPlotNode::legendNode() const
 {
     return d_ptr->legendNode.get();

@@ -6,12 +6,14 @@
 #include <QColor>
 #include "QImPlot.h"
 #include "QImPlotLineItemNode.h"
+#include "QImPlotMarkerAnnotationItemNode.h"
 namespace QIM
 {
 class QImPlotAxisInfo;
 class QImPlotItemNode;
 class QImPlotLegendNode;
 class QImPlotLineItemNode;
+class QImPlotMarkerAnnotationItemNode;
 /**
  * @brief ImPlot 绘图区域节点
  *
@@ -128,6 +130,11 @@ public:
     void addLine(QImPlotLineItemNode* lineItem);
     template< typename ContainerX, typename ContainerY >
     QImPlotLineItemNode* addLine(const ContainerX& x, const ContainerY& y, const QString& label);
+    void addMarkerAnnotations(QImPlotMarkerAnnotationItemNode* item);
+    template< typename ContainerX, typename ContainerY >
+    QImPlotMarkerAnnotationItemNode* addMarkerAnnotations(const ContainerX& x, const ContainerY& y, const QString& label);
+    template< typename Container >
+    QImPlotMarkerAnnotationItemNode* addMarkerAnnotations(const Container& points, const QString& label);
     //===============================================================
     // Legend
     //===============================================================
@@ -163,6 +170,27 @@ inline QImPlotLineItemNode* QImPlotNode::addLine(const ContainerX& x, const Cont
     line->setLabel(label);
     addPlotItem(line);
     return line;
+}
+
+template< typename ContainerX, typename ContainerY >
+inline QImPlotMarkerAnnotationItemNode* QImPlotNode::addMarkerAnnotations(
+    const ContainerX& x, const ContainerY& y, const QString& label)
+{
+    QImPlotMarkerAnnotationItemNode* item = new QImPlotMarkerAnnotationItemNode();
+    item->setData(x, y);
+    item->setLabel(label);
+    addPlotItem(item);
+    return item;
+}
+
+template< typename Container >
+inline QImPlotMarkerAnnotationItemNode* QImPlotNode::addMarkerAnnotations(const Container& points, const QString& label)
+{
+    QImPlotMarkerAnnotationItemNode* item = new QImPlotMarkerAnnotationItemNode();
+    item->setPoints(points);
+    item->setLabel(label);
+    addPlotItem(item);
+    return item;
 }
 
 }
