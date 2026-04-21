@@ -112,6 +112,9 @@ public:
     void removeRenderNode(QImAbstractNode* node);
     // 抽取渲染节点
     bool takeRenderNode(QImAbstractNode* node);
+    // 控制宿主 ImGui 根窗口的边框
+    void setHostWindowBorderVisible(bool visible);
+    bool isHostWindowBorderVisible() const;
     //----------------------------------------------------
     // 主题字体控制
     //----------------------------------------------------

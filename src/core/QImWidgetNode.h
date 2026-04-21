@@ -1,6 +1,7 @@
 ﻿#ifndef QIMWIDGETNODE_H
 #define QIMWIDGETNODE_H
 #include "QImAbstractNode.h"
+#include <variant>
 #include <QMarginsF>
 #include <QRect>
 #include <QSize>
@@ -25,6 +26,7 @@ class QIM_CORE_API QImWidgetNode : public QImAbstractNode
     Q_PROPERTY(QSize size READ size WRITE setSize)
     Q_PROPERTY(QSize minimumSize READ minimumSize WRITE setMinimumSize)
     Q_PROPERTY(QMarginsF contentsMargins READ contentsMargins WRITE setContentsMargins)
+    Q_PROPERTY(float windowBorderSize READ windowBorderSize WRITE setWindowBorderSize)
 
     // 语义化窗口标志（Qt 风格命名）
     Q_PROPERTY(bool isTitleBarEnabled READ isTitleBarEnabled WRITE setTitleBarEnabled)
@@ -70,6 +72,8 @@ public:
     QMarginsF contentsMargins() const;
     void setContentsMargins(const QMarginsF& margins);
     void setContentsMargins(float paddingX, float paddingY);
+    float windowBorderSize() const;
+    void setWindowBorderSize(float size);
 
     // 判断当前窗口是否是收起状态
     bool isWidgetCollapsed() const;

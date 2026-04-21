@@ -79,10 +79,12 @@ QImPlotTheme::QImPlotTheme() : QIM_PIMPL_CONSTRUCT
  * @note 所有颜色分量均被复制；PrivateData 中的 q_ptr 会重新绑定到新实例
  * \endif
  */
-QImPlotTheme::QImPlotTheme(const QImPlotTheme& other)
+QImPlotTheme::QImPlotTheme(const QImPlotTheme& other) : QIM_PIMPL_CONSTRUCT
 {
-    // Deep copy all color components from source
-    d_ptr->copyColorsFrom(other);
+    if (other.d_ptr) {
+        // Deep copy all color components from source
+        d_ptr->copyColorsFrom(other);
+    }
 }
 
 /**
@@ -462,9 +464,14 @@ bool QImPlotTheme::operator!=(const QImPlotTheme& other) const
  */
 QImPlotTheme& QImPlotTheme::operator=(const QImPlotTheme& other)
 {
-    if (this != &other && other.d_ptr) {
-        // Copy all color components (d_ptr already exists from construction)
-        d_ptr->copyColorsFrom(other);
+    if (this != &other) {
+        if (!d_ptr) {
+            d_ptr = std::make_unique< PrivateData >(this);
+        }
+        if (other.d_ptr) {
+            // Copy all color components (d_ptr already exists from construction)
+            d_ptr->copyColorsFrom(other);
+        }
     }
     return *this;
 }

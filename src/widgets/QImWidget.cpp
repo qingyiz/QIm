@@ -567,6 +567,22 @@ bool QImWidget::takeRenderNode(QImAbstractNode* node)
     return d_ptr->rootRenderNode->takeChildNode(node);
 }
 
+void QImWidget::setHostWindowBorderVisible(bool visible)
+{
+    if (auto* widgetNode = qobject_cast< QImWidgetNode* >(d_ptr->rootRenderNode.get())) {
+        widgetNode->setWindowBorderSize(visible ? 1.0f : 0.0f);
+        requestRender();
+    }
+}
+
+bool QImWidget::isHostWindowBorderVisible() const
+{
+    if (auto* widgetNode = qobject_cast< QImWidgetNode* >(d_ptr->rootRenderNode.get())) {
+        return widgetNode->windowBorderSize() > 0.0f;
+    }
+    return true;
+}
+
 /**
  * @brief ImGui的颜色主题
  * @return

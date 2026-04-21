@@ -32,8 +32,11 @@ public:
         StyleVar(const ImGuiStyleVar& v1, const ImVec2& v2) : idx(v1), value(v2)
         {
         }
+        StyleVar(const ImGuiStyleVar& v1, float v2) : idx(v1), value(v2)
+        {
+        }
         ImGuiStyleVar idx;
-        ImVec2 value;
+        std::variant< float, ImVec2 > value;
     };
     std::vector< StyleVar > styleVars;
 
@@ -50,6 +53,7 @@ QImWidgetNode::PrivateData::PrivateData(QImWidgetNode* q) : q_ptr(q)
     // 设置默认样式（匹配 ImGui 默认值）
     styleVars.emplace_back(ImGuiStyleVar_WindowPadding, ImVec2(1.0f, 1.0f));
     styleVars.emplace_back(ImGuiStyleVar_WindowMinSize, ImVec2(32.0f, 32.0f));
+    styleVars.emplace_back(ImGuiStyleVar_WindowBorderSize, 1.0f);
 }
 
 // === Qt 风格基本属性实现 ===
@@ -139,7 +143,8 @@ void QImWidgetNode::setMinimumSize(const QSize& size)
     );
 
     if (it != d->styleVars.end()) {
-        if (!fuzzyEqual(it->value, newSize)) {
+        const ImVec2 oldSize = std::get< ImVec2 >(it->value);
+        if (!fuzzyEqual(oldSize, newSize)) {
             it->value      = newSize;
             d->minimumSize = newSize;
         }
@@ -157,7 +162,8 @@ QMarginsF QImWidgetNode::contentsMargins() const
     // 查找 WindowPadding 样式
     for (const auto& var : std::as_const(d->styleVars)) {
         if (var.idx == ImGuiStyleVar_WindowPadding) {
-            return QMarginsF(var.value.x, var.value.y, var.value.x, var.value.y);
+            const ImVec2 padding = std::get< ImVec2 >(var.value);
+            return QMarginsF(padding.x, padding.y, padding.x, padding.y);
         }
     }
     // 默认值
@@ -181,11 +187,40 @@ void QImWidgetNode::setContentsMargins(float paddingX, float paddingY)
     });
     ImVec2 newPadding(paddingX, paddingY);
     if (it != d->styleVars.end()) {
-        if (!fuzzyEqual(it->value, newPadding)) {
+        const ImVec2 oldPadding = std::get< ImVec2 >(it->value);
+        if (!fuzzyEqual(oldPadding, newPadding)) {
             it->value = newPadding;
         }
     } else {
         d->styleVars.emplace_back(ImGuiStyleVar_WindowPadding, newPadding);
+    }
+}
+
+float QImWidgetNode::windowBorderSize() const
+{
+    QIM_DC(d);
+    for (const auto& var : std::as_const(d->styleVars)) {
+        if (var.idx == ImGuiStyleVar_WindowBorderSize) {
+            return std::get< float >(var.value);
+        }
+    }
+    return 1.0f;
+}
+
+void QImWidgetNode::setWindowBorderSize(float size)
+{
+    QIM_D(d);
+    auto it = std::find_if(d->styleVars.begin(), d->styleVars.end(), [](const PrivateData::StyleVar& var) {
+        return var.idx == ImGuiStyleVar_WindowBorderSize;
+    });
+    const float newSize = std::max(0.0f, size);
+    if (it != d->styleVars.end()) {
+        const float oldSize = std::get< float >(it->value);
+        if (!fuzzyEqual(oldSize, newSize)) {
+            it->value = newSize;
+        }
+    } else {
+        d->styleVars.emplace_back(ImGuiStyleVar_WindowBorderSize, newSize);
     }
 }
 
@@ -457,7 +492,11 @@ bool QImWidgetNode::beginDraw()
 
     // 应用样式变量
     for (const auto& var : d->styleVars) {
-        ImGui::PushStyleVar(var.idx, var.value);
+        if (std::holds_alternative< float >(var.value)) {
+            ImGui::PushStyleVar(var.idx, std::get< float >(var.value));
+        } else {
+            ImGui::PushStyleVar(var.idx, std::get< ImVec2 >(var.value));
+        }
     }
     if (!isEnabled()) {
         ImGui::BeginDisabled();
