@@ -1,5 +1,7 @@
 ﻿#ifndef QIMPLOTLINEITEMNODE_H
 #define QIMPLOTLINEITEMNODE_H
+#include <type_traits>
+#include <vector>
 #include "QImPlotItemNode.h"
 #include "QImPlotDataSeries.h"
 
@@ -27,6 +29,8 @@ class QIM_CORE_API QImPlotLineItemNode : public QImPlotItemNode
     Q_PROPERTY(QColor markerFillColor READ markerFillColor WRITE setMarkerFillColor NOTIFY markerFillColorChanged)
     Q_PROPERTY(
         QColor markerOutlineColor READ markerOutlineColor WRITE setMarkerOutlineColor NOTIFY markerOutlineColorChanged)
+    Q_PROPERTY(
+        bool directionArrowsVisible READ isDirectionArrowsVisible WRITE setDirectionArrowsVisible NOTIFY directionArrowsVisibilityChanged)
 public:
     QImPlotLineItemNode(QObject* par = nullptr);
     ~QImPlotLineItemNode();
@@ -46,8 +50,17 @@ public:
     QImAbstractXYDataSeries* setData(const ContainerX& x, const ContainerY& y);
     template< typename ContainerX, typename ContainerY >
     QImAbstractXYDataSeries* setData(ContainerX&& x, ContainerY&& y);
+    void setZData(const std::vector< double >& z);
+    void setZData(std::vector< double >&& z);
+    template< typename ContainerZ >
+    void setZData(const ContainerZ& z);
+    template< typename ContainerZ >
+    void setZData(ContainerZ&& z);
+    void clearZData();
     // 获取数据
     QImAbstractXYDataSeries* data() const;
+    bool hasZData() const;
+    bool hasOrderedZData() const;
     //----------------------------------------------------
     // ImPlotLineFlags
     //----------------------------------------------------
@@ -91,6 +104,8 @@ public:
     QColor markerFillColor() const;
     void setMarkerOutlineColor(const QColor& color);
     QColor markerOutlineColor() const;
+    void setDirectionArrowsVisible(bool on);
+    bool isDirectionArrowsVisible() const;
     //===============================================================
     // name
     //===============================================================
@@ -106,6 +121,8 @@ Q_SIGNALS:
     void markerWeightChanged(float weight);
     void markerFillColorChanged(const QColor& color);
     void markerOutlineColorChanged(const QColor& color);
+    void zDataChanged();
+    void directionArrowsVisibilityChanged(bool visible);
 
 protected:
     virtual bool beginDraw() override;
@@ -124,6 +141,20 @@ QImAbstractXYDataSeries* QImPlotLineItemNode::setData(ContainerX&& x, ContainerY
     QImAbstractXYDataSeries* d = new QImVectorXYDataSeries(x, y);
     setData(d);
     return d;
+}
+
+template< typename ContainerZ >
+inline void QImPlotLineItemNode::setZData(const ContainerZ& z)
+{
+    static_assert(std::is_convertible_v< typename ContainerZ::value_type, double >, "ContainerZ must store numeric values");
+    setZData(std::vector< double >(z.begin(), z.end()));
+}
+
+template< typename ContainerZ >
+inline void QImPlotLineItemNode::setZData(ContainerZ&& z)
+{
+    static_assert(std::is_convertible_v< typename ContainerZ::value_type, double >, "ContainerZ must store numeric values");
+    setZData(std::vector< double >(z.begin(), z.end()));
 }
 
 }  // end namespace QIM

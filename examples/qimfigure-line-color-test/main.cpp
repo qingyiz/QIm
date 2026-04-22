@@ -1,5 +1,6 @@
 #include <cmath>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QHBoxLayout>
@@ -29,9 +30,36 @@ QColor randomColor()
                            QRandomGenerator::global()->bounded(256));
 }
 
+std::vector< double > buildOrderedZData(int count, bool descending)
+{
+    std::vector< double > values(count);
+    for (int i = 0; i < count; ++i) {
+        values[ i ] = descending ? static_cast< double >(count - i) : static_cast< double >(i);
+    }
+    return values;
+}
+
+std::vector< double > buildUnorderedZData(int count)
+{
+    std::vector< double > values = buildOrderedZData(count, false);
+    if (count > 6) {
+        std::swap(values[ 2 ], values[ 3 ]);
+        std::swap(values[ count / 2 ], values[ (count / 2) + 1 ]);
+    }
+    return values;
+}
+
 class LineAppearanceTestWindow : public QMainWindow
 {
 public:
+    enum DirectionMode
+    {
+        DirectionModeAscending = 0,
+        DirectionModeDescending,
+        DirectionModeUnordered,
+        DirectionModeNone
+    };
+
     LineAppearanceTestWindow()
     {
         setWindowTitle("QIm Figure Line Appearance Test");
@@ -42,7 +70,7 @@ public:
 
         QLabel* tip = new QLabel(
             "This example verifies line color, line width, marker shape, marker size, marker outline width, "
-            "marker fill color, marker outline color, and line style.\n"
+            "marker fill color, marker outline color, line style, and directional arrows driven by ordered z data.\n"
             "Left: QImPlotLineItemNode. Right: QImPlotInfLinesItemNode with shared line appearance and explicit text controls.",
             central);
         tip->setWordWrap(true);
@@ -129,6 +157,20 @@ public:
         styleRow->addWidget(resetButton);
         styleRow->addStretch();
         root->addLayout(styleRow);
+
+        QHBoxLayout* directionRow = new QHBoxLayout();
+        m_directionArrowsCheck = new QCheckBox("Show Direction Arrows", central);
+        directionRow->addWidget(m_directionArrowsCheck);
+
+        directionRow->addWidget(new QLabel("Z Data Mode", central));
+        m_directionModeCombo = new QComboBox(central);
+        m_directionModeCombo->addItem("Ascending Z", DirectionModeAscending);
+        m_directionModeCombo->addItem("Descending Z", DirectionModeDescending);
+        m_directionModeCombo->addItem("Unordered Z", DirectionModeUnordered);
+        m_directionModeCombo->addItem("No Z Data", DirectionModeNone);
+        directionRow->addWidget(m_directionModeCombo);
+        directionRow->addStretch();
+        root->addLayout(directionRow);
 
         QHBoxLayout* annotationRow = new QHBoxLayout();
         annotationRow->addWidget(new QLabel("InfLines Text", central));
@@ -227,6 +269,21 @@ public:
         connect(resetButton, &QPushButton::clicked, this, [this]() {
             applyDefaultAppearance();
             syncControlsFromLine();
+            requestFigureRender();
+            updateSummary();
+        });
+        connect(m_directionArrowsCheck, &QCheckBox::toggled, this, [this](bool checked) {
+            if (m_line) {
+                m_line->setDirectionArrowsVisible(checked);
+                requestFigureRender();
+            }
+            updateSummary();
+        });
+        connect(m_directionModeCombo, qOverload< int >(&QComboBox::currentIndexChanged), this, [this](int index) {
+            if (!m_line) {
+                return;
+            }
+            applyDirectionMode(static_cast< DirectionMode >(m_directionModeCombo->itemData(index).toInt()));
             requestFigureRender();
             updateSummary();
         });
@@ -383,6 +440,8 @@ private:
         m_line->setMarkerWeight(1.5f);
         m_line->setMarkerFillColor(QColor(255, 215, 0));
         m_line->setMarkerOutlineColor(QColor(40, 40, 40));
+        m_line->setDirectionArrowsVisible(true);
+        applyDirectionMode(DirectionModeAscending);
         for (auto* infLine : m_infLines) {
             if (!infLine) {
                 continue;
@@ -404,6 +463,8 @@ private:
         QSignalBlocker blockShape(m_markerShapeCombo);
         QSignalBlocker blockSize(m_markerSizeSpin);
         QSignalBlocker blockWeight(m_markerWeightSpin);
+        QSignalBlocker blockDirectionVisible(m_directionArrowsCheck);
+        QSignalBlocker blockDirectionMode(m_directionModeCombo);
         QSignalBlocker blockAnnotationEdit(m_annotationEdit);
         QSignalBlocker blockAnnotationPos(m_annotationPositionCombo);
         QSignalBlocker blockAnnotationOffset(m_annotationOffsetCombo);
@@ -411,6 +472,13 @@ private:
         m_lineWidthSpin->setValue(m_line->lineWidth());
         m_markerSizeSpin->setValue(m_line->markerSize());
         m_markerWeightSpin->setValue(m_line->markerWeight());
+        m_directionArrowsCheck->setChecked(m_line->isDirectionArrowsVisible());
+        for (int i = 0; i < m_directionModeCombo->count(); ++i) {
+            if (m_directionModeCombo->itemData(i).toInt() == static_cast< int >(m_directionMode)) {
+                m_directionModeCombo->setCurrentIndex(i);
+                break;
+            }
+        }
         if (!m_infLines.empty() && m_infLines.front()) {
             m_annotationEdit->setText(m_infLines.front()->text());
             const int annotationPosition = static_cast< int >(m_infLines.front()->textPosition());
@@ -452,6 +520,29 @@ private:
         }
     }
 
+    void applyDirectionMode(DirectionMode mode)
+    {
+        m_directionMode = mode;
+        if (!m_line) {
+            return;
+        }
+
+        switch (mode) {
+        case DirectionModeAscending:
+            m_line->setZData(buildOrderedZData(600, false));
+            break;
+        case DirectionModeDescending:
+            m_line->setZData(buildOrderedZData(600, true));
+            break;
+        case DirectionModeUnordered:
+            m_line->setZData(buildUnorderedZData(600));
+            break;
+        case DirectionModeNone:
+            m_line->clearZData();
+            break;
+        }
+    }
+
     void updateSummary()
     {
         if (!m_line) {
@@ -462,11 +553,14 @@ private:
         m_summaryLabel->setText(
             QString("Left subplot tests line + marker appearance. Right subplot tests InfLines style + text placement. "
                     "Vertical guide text is rendered vertically; horizontal guide text stays horizontal. "
-                    "Text=\"%1\" | Position=%2 | Offset=%3 | "
-                    "Line: color=%4 | style=%5 | width=%6 | marker=%7 | size=%8 | weight=%9 | fill=%10 | outline=%11")
+                    "Text=\"%1\" | Position=%2 | Offset=%3 | Direction arrows=%4 | Z mode=%5 | Z ordered=%6 | "
+                    "Line: color=%7 | style=%8 | width=%9 | marker=%10 | size=%11 | weight=%12 | fill=%13 | outline=%14")
                 .arg(m_annotationEdit ? m_annotationEdit->text() : QString())
                 .arg(m_annotationPositionCombo ? m_annotationPositionCombo->currentText() : QString())
                 .arg(m_annotationOffsetCombo ? m_annotationOffsetCombo->currentText() : QString())
+                .arg(m_line->isDirectionArrowsVisible() ? "on" : "off")
+                .arg(m_directionModeCombo ? m_directionModeCombo->currentText() : QString())
+                .arg(m_line->hasOrderedZData() ? "true" : "false")
                 .arg(m_line->color().name(QColor::HexRgb))
                 .arg(m_lineStyleCombo->currentText())
                 .arg(m_line->lineWidth(), 0, 'f', 1)
@@ -486,9 +580,12 @@ private:
     QComboBox* m_markerShapeCombo { nullptr };
     QDoubleSpinBox* m_markerSizeSpin { nullptr };
     QDoubleSpinBox* m_markerWeightSpin { nullptr };
+    QCheckBox* m_directionArrowsCheck { nullptr };
+    QComboBox* m_directionModeCombo { nullptr };
     QLineEdit* m_annotationEdit { nullptr };
     QComboBox* m_annotationPositionCombo { nullptr };
     QComboBox* m_annotationOffsetCombo { nullptr };
+    DirectionMode m_directionMode { DirectionModeAscending };
 };
 }  // namespace
 

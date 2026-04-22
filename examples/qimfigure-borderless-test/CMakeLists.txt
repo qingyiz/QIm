@@ -82,3 +82,7 @@ install(TARGETS ${EXAMPLE_PROJECT_NAME}
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(${EXAMPLE_PROJECT_NAME})
 endif()
+
+if(WIN32)
+target_compile_definitions(${EXAMPLE_PROJECT_NAME} PRIVATE _USE_MATH_DEFINES)
+endif()

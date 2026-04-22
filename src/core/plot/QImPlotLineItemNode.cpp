@@ -1,4 +1,5 @@
 ﻿#include "QImPlotLineItemNode.h"
+#include <numeric>
 #include <optional>
 #include "QImPlotDataSeries.h"
 #include "QImLTTBDownsampler.h"
@@ -42,11 +43,50 @@ public:
     QImTrackedValue< float > markerWeight { 1.0f };                                          ///< 点边框宽度
     std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > markerFillColor;   ///< 点填充颜色
     std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > markerOutlineColor;  ///< 点轮廓颜色
+    std::vector< double > zData;                                                             ///< 用于指定曲线方向的数据
+    bool directionArrowsVisible { true };
     bool isPlotItemVisible;
 };
 
 namespace
 {
+enum class DirectionZOrder
+{
+    None,
+    Monotonic
+};
+
+DirectionZOrder directionZOrder(const std::vector< double >& zData)
+{
+    if (zData.size() < 2) {
+        return DirectionZOrder::None;
+    }
+
+    bool hasPositiveDiff = false;
+    bool hasNegativeDiff = false;
+    for (std::size_t i = 1; i < zData.size(); ++i) {
+        const double previous = zData[ i - 1 ];
+        const double current  = zData[ i ];
+        if (!std::isfinite(previous) || !std::isfinite(current)) {
+            return DirectionZOrder::None;
+        }
+
+        const double diff = current - previous;
+        if (std::abs(diff) <= 1e-12) {
+            continue;
+        }
+        if (diff > 0.0) {
+            hasPositiveDiff = true;
+        } else {
+            hasNegativeDiff = true;
+        }
+        if (hasPositiveDiff && hasNegativeDiff) {
+            return DirectionZOrder::None;
+        }
+    }
+    return (hasPositiveDiff || hasNegativeDiff) ? DirectionZOrder::Monotonic : DirectionZOrder::None;
+}
+
 std::vector< float > patternForPenStyle(Qt::PenStyle style, float width)
 {
     const float unit = std::max(width, 1.0f);
@@ -68,6 +108,13 @@ bool needsCustomLineRendering(Qt::PenStyle style)
 {
     return style != Qt::SolidLine;
 }
+
+struct DirectionSegment
+{
+    ImVec2 from;
+    ImVec2 to;
+    float length;
+};
 
 void drawStyledSegment(
     ImDrawList* drawList,
@@ -169,6 +216,136 @@ void drawCustomStyledLine(
     }
     flushPoints(loop);
 }
+
+std::vector< DirectionSegment > buildDirectionSegments(
+    QImAbstractXYDataSeries* series,
+    ImPlotLineFlags flags,
+    QImPlotAxisId xAxisId,
+    QImPlotAxisId yAxisId
+)
+{
+    std::vector< DirectionSegment > segments;
+    if (!series || series->size() < 2) {
+        return segments;
+    }
+
+    bool hasPrevious = false;
+    ImPlotPoint previousPoint {};
+    for (int i = 0; i < series->size(); ++i) {
+        const double x = series->xValue(i);
+        const double y = series->yValue(i);
+        const bool valid = std::isfinite(x) && std::isfinite(y);
+        if (!valid) {
+            hasPrevious = false;
+            continue;
+        }
+
+        const ImPlotPoint currentPoint(x, y);
+        if (hasPrevious) {
+            const ImVec2 fromPixels = ImPlot::PlotToPixels(
+                previousPoint, static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            const ImVec2 toPixels = ImPlot::PlotToPixels(
+                currentPoint, static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+            const float dx = toPixels.x - fromPixels.x;
+            const float dy = toPixels.y - fromPixels.y;
+            const float segmentLength = std::sqrt(dx * dx + dy * dy);
+            if (segmentLength > 1.0f) {
+                segments.push_back({ fromPixels, toPixels, segmentLength });
+            }
+            if ((flags & ImPlotLineFlags_Segments) != 0) {
+                hasPrevious = false;
+                continue;
+            }
+        }
+        previousPoint = currentPoint;
+        hasPrevious = true;
+    }
+
+    return segments;
+}
+
+int automaticDirectionArrowCount(float totalLength)
+{
+    if (totalLength < 140.0f) {
+        return 0;
+    }
+    if (totalLength < 360.0f) {
+        return 2;
+    }
+    return 3;
+}
+
+void drawDirectionArrows(
+    QImAbstractXYDataSeries* series,
+    ImPlotLineFlags flags,
+    const std::vector< double >& zData,
+    float lineWidth,
+    ImU32 color,
+    QImPlotAxisId xAxisId,
+    QImPlotAxisId yAxisId
+)
+{
+    if (!series || series->size() < 2 || zData.size() != static_cast< std::size_t >(series->size())) {
+        return;
+    }
+    if (directionZOrder(zData) == DirectionZOrder::None) {
+        return;
+    }
+
+    const std::vector< DirectionSegment > segments = buildDirectionSegments(series, flags, xAxisId, yAxisId);
+    if (segments.empty()) {
+        return;
+    }
+
+    float totalLength = 0.0f;
+    for (const DirectionSegment& segment : segments) {
+        totalLength += segment.length;
+    }
+
+    const int arrowCount = automaticDirectionArrowCount(totalLength);
+    if (arrowCount <= 0) {
+        return;
+    }
+
+    ImDrawList* drawList = ImPlot::GetPlotDrawList();
+    if (!drawList) {
+        return;
+    }
+
+    const float triangleSide = std::max(10.0f, lineWidth * 3.2f + 6.0f);
+    const float triangleHeight = triangleSide * std::sqrt(3.0f) * 0.5f;
+    const float centroidToTip = triangleHeight * (2.0f / 3.0f);
+    const float centroidToBase = triangleHeight * (1.0f / 3.0f);
+    const float halfBase = triangleSide * 0.5f;
+    for (int arrowIndex = 0; arrowIndex < arrowCount; ++arrowIndex) {
+        const float targetLength = totalLength * static_cast< float >(arrowIndex + 1) / static_cast< float >(arrowCount + 1);
+        float traversed = 0.0f;
+        for (const DirectionSegment& segment : segments) {
+            if ((traversed + segment.length) < targetLength) {
+                traversed += segment.length;
+                continue;
+            }
+
+            const float localT = std::clamp((targetLength - traversed) / segment.length, 0.0f, 1.0f);
+            const ImVec2 position(
+                segment.from.x + (segment.to.x - segment.from.x) * localT,
+                segment.from.y + (segment.to.y - segment.from.y) * localT);
+            const ImVec2 direction(
+                (segment.to.x - segment.from.x) / segment.length, (segment.to.y - segment.from.y) / segment.length);
+            const ImVec2 perpendicular(-direction.y, direction.x);
+
+            // Use an equilateral triangle so the direction marker remains visually balanced.
+            const ImVec2 tip(position.x + direction.x * centroidToTip, position.y + direction.y * centroidToTip);
+            const ImVec2 baseCenter(
+                position.x - direction.x * centroidToBase, position.y - direction.y * centroidToBase);
+            const ImVec2 left(baseCenter.x + perpendicular.x * halfBase, baseCenter.y + perpendicular.y * halfBase);
+            const ImVec2 right(baseCenter.x - perpendicular.x * halfBase, baseCenter.y - perpendicular.y * halfBase);
+
+            drawList->AddTriangleFilled(tip, left, right, color);
+            break;
+        }
+    }
+}
 }  // namespace
 
 QImPlotLineItemNode::PrivateData::PrivateData(QImPlotLineItemNode* p) : q_ptr(p)
@@ -218,6 +395,37 @@ void QImPlotLineItemNode::setData(QImAbstractXYDataSeries* series)
 QImAbstractXYDataSeries* QImPlotLineItemNode::data() const
 {
     return d_ptr->data.get();
+}
+
+void QImPlotLineItemNode::setZData(const std::vector< double >& z)
+{
+    setZData(std::vector< double >(z));
+}
+
+void QImPlotLineItemNode::setZData(std::vector< double >&& z)
+{
+    if (d_ptr->zData != z) {
+        d_ptr->zData = std::move(z);
+        emit zDataChanged();
+    }
+}
+
+void QImPlotLineItemNode::clearZData()
+{
+    if (!d_ptr->zData.empty()) {
+        d_ptr->zData.clear();
+        emit zDataChanged();
+    }
+}
+
+bool QImPlotLineItemNode::hasZData() const
+{
+    return !d_ptr->zData.empty();
+}
+
+bool QImPlotLineItemNode::hasOrderedZData() const
+{
+    return directionZOrder(d_ptr->zData) == DirectionZOrder::Monotonic;
 }
 
 // ===== 在 CPP 文件顶部添加辅助宏定义 =====
@@ -465,6 +673,19 @@ QColor QImPlotLineItemNode::markerOutlineColor() const
     return d_ptr->markerOutlineColor ? toQColor(d_ptr->markerOutlineColor->value()) : QColor();
 }
 
+void QImPlotLineItemNode::setDirectionArrowsVisible(bool on)
+{
+    if (d_ptr->directionArrowsVisible != on) {
+        d_ptr->directionArrowsVisible = on;
+        emit directionArrowsVisibilityChanged(on);
+    }
+}
+
+bool QImPlotLineItemNode::isDirectionArrowsVisible() const
+{
+    return d_ptr->directionArrowsVisible;
+}
+
 void QImPlotLineItemNode::setAdaptivesSampling(bool on)
 {
     d_ptr->isAdaptiveSampling = on;
@@ -697,15 +918,24 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
         d->color = ImPlot::GetLastItemColor();
         d->color->mark_clean();
     }
-    if (customStyledLine) {
+    const bool shouldDrawDirectionArrows =
+        d->directionArrowsVisible && (d->lineStyle != Qt::NoPen) && (directionZOrder(d->zData) == DirectionZOrder::Monotonic);
+    const bool shouldDrawOverlay = plotItem && plotItem->Show && (customStyledLine || shouldDrawDirectionArrows);
+    if (shouldDrawOverlay) {
         ImPlot::PushPlotClipRect();
-        drawCustomStyledLine(series,
-                             d->lineFlags,
-                             d->lineStyle,
-                             d->lineWidth.value(),
-                             plotItem ? plotItem->Color : ImGui::ColorConvertFloat4ToU32(d->color->value()),
-                             xAxisId(),
-                             yAxisId());
+        if (customStyledLine) {
+            drawCustomStyledLine(series,
+                                 d->lineFlags,
+                                 d->lineStyle,
+                                 d->lineWidth.value(),
+                                 plotItem->Color,
+                                 xAxisId(),
+                                 yAxisId());
+        }
+        if (shouldDrawDirectionArrows) {
+            drawDirectionArrows(
+                d->data.get(), d->lineFlags, d->zData, std::max(d->lineWidth.value(), 1.0f), plotItem->Color, xAxisId(), yAxisId());
+        }
         ImPlot::PopPlotClipRect();
     }
     // 绘图之后，更新状态
