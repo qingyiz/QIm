@@ -123,6 +123,11 @@ class QIM_CORE_API QImPlotBarsItemNode : public QImPlotItemNode
      * \endif
      */
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
+    Q_PROPERTY(QColor fillColor READ fillColor WRITE setFillColor NOTIFY fillColorChanged)
+    Q_PROPERTY(QColor borderColor READ borderColor WRITE setBorderColor NOTIFY borderColorChanged)
+    Q_PROPERTY(float borderWidth READ borderWidth WRITE setBorderWidth NOTIFY borderWidthChanged)
+    Q_PROPERTY(bool fillVisible READ isFillVisible WRITE setFillVisible NOTIFY fillVisibleChanged)
+    Q_PROPERTY(bool borderVisible READ isBorderVisible WRITE setBorderVisible NOTIFY borderVisibleChanged)
 
 public:
     // Unique type identifier for QImPlotBarsItemNode
@@ -183,6 +188,36 @@ public:
     // Sets the bar color
     void setColor(const QColor& color);
 
+    // Gets the fill color of bars
+    QColor fillColor() const;
+
+    // Sets the fill color of bars
+    void setFillColor(const QColor& color);
+
+    // Gets the border color of bars
+    QColor borderColor() const;
+
+    // Sets the border color of bars
+    void setBorderColor(const QColor& color);
+
+    // Gets the border width in pixels
+    float borderWidth() const;
+
+    // Sets the border width in pixels
+    void setBorderWidth(float width);
+
+    // Checks if fill rendering is enabled
+    bool isFillVisible() const;
+
+    // Enables or disables fill rendering
+    void setFillVisible(bool visible);
+
+    // Checks if border rendering is enabled
+    bool isBorderVisible() const;
+
+    // Enables or disables border rendering
+    void setBorderVisible(bool visible);
+
     // Gets the raw ImPlotBarsFlags
     int barsFlags() const;
 
@@ -240,6 +275,16 @@ Q_SIGNALS:
      * \endif
      */
     void colorChanged(const QColor& color);
+
+    void fillColorChanged(const QColor& color);
+
+    void borderColorChanged(const QColor& color);
+
+    void borderWidthChanged(float width);
+
+    void fillVisibleChanged(bool visible);
+
+    void borderVisibleChanged(bool visible);
 
     /**
      * \if ENGLISH

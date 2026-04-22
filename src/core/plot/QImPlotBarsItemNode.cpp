@@ -1,4 +1,5 @@
 #include "QImPlotBarsItemNode.h"
+#include <algorithm>
 #include <optional>
 #include "implot.h"
 #include "implot_internal.h"
@@ -17,8 +18,12 @@ public:
     std::unique_ptr< QImAbstractXYDataSeries > data;
     ImPlotBarsFlags flags { ImPlotBarsFlags_None };
     double barWidth { 0.67 };  ///< Bar width in plot units
-    // Style tracking values
-    std::optional< QImTrackedValue< ImVec4, QIM::ImVecComparator< ImVec4 > > > color;
+    bool fillVisible { true };
+    bool borderVisible { true };
+    std::optional< QImTrackedValue< ImVec4, QIM::ImVecComparator< ImVec4 > > > fillColor;
+    std::optional< QImTrackedValue< ImVec4, QIM::ImVecComparator< ImVec4 > > > borderColor;
+    std::optional< QImTrackedValue< float > > borderWidth;
+    std::optional< ImVec4 > autoFillColor;
 };
 
 QImPlotBarsItemNode::PrivateData::PrivateData(QImPlotBarsItemNode* p) : q_ptr(p)
@@ -217,20 +222,8 @@ void QImPlotBarsItemNode::setBarsFlags(int flags)
  */
 void QImPlotBarsItemNode::setColor(const QColor& c)
 {
-    const ImVec4 color = toImVec4(c);
-    const bool changed = !d_ptr->color || !ImVecComparator< ImVec4 > {}(d_ptr->color->value(), color);
-    if (d_ptr->color) {
-        d_ptr->color->value() = color;
-        if (changed) {
-            d_ptr->color->mark_dirty();
-        }
-    } else {
-        d_ptr->color.emplace(color);
-        d_ptr->color->mark_dirty();
-    }
-    if (changed) {
-        emit colorChanged(c);
-    }
+    setFillColor(c);
+    setBorderColor(c);
 }
 
 /**
@@ -246,7 +239,113 @@ void QImPlotBarsItemNode::setColor(const QColor& c)
  */
 QColor QImPlotBarsItemNode::color() const
 {
-    return (d_ptr->color.has_value()) ? toQColor(d_ptr->color->value()) : QColor();
+    return fillColor();
+}
+
+void QImPlotBarsItemNode::setFillColor(const QColor& c)
+{
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->fillColor || !ImVecComparator< ImVec4 > {}(d_ptr->fillColor->value(), color);
+    if (d_ptr->fillColor) {
+        d_ptr->fillColor->value() = color;
+        if (changed) {
+            d_ptr->fillColor->mark_dirty();
+        }
+    } else {
+        d_ptr->fillColor.emplace(color);
+        d_ptr->fillColor->mark_dirty();
+    }
+    if (changed) {
+        emit fillColorChanged(c);
+        emit colorChanged(c);
+    }
+}
+
+QColor QImPlotBarsItemNode::fillColor() const
+{
+    if (d_ptr->fillColor.has_value()) {
+        return toQColor(d_ptr->fillColor->value());
+    }
+    if (d_ptr->autoFillColor.has_value()) {
+        return toQColor(d_ptr->autoFillColor.value());
+    }
+    return QColor();
+}
+
+void QImPlotBarsItemNode::setBorderColor(const QColor& c)
+{
+    const ImVec4 color = toImVec4(c);
+    const bool changed = !d_ptr->borderColor || !ImVecComparator< ImVec4 > {}(d_ptr->borderColor->value(), color);
+    if (d_ptr->borderColor) {
+        d_ptr->borderColor->value() = color;
+        if (changed) {
+            d_ptr->borderColor->mark_dirty();
+        }
+    } else {
+        d_ptr->borderColor.emplace(color);
+        d_ptr->borderColor->mark_dirty();
+    }
+    if (changed) {
+        emit borderColorChanged(c);
+    }
+}
+
+QColor QImPlotBarsItemNode::borderColor() const
+{
+    if (d_ptr->borderColor.has_value()) {
+        return toQColor(d_ptr->borderColor->value());
+    }
+    return fillColor();
+}
+
+float QImPlotBarsItemNode::borderWidth() const
+{
+    if (d_ptr->borderWidth.has_value()) {
+        return d_ptr->borderWidth->value();
+    }
+    return 1.0f;
+}
+
+void QImPlotBarsItemNode::setBorderWidth(float width)
+{
+    const float newWidth = std::max(0.0f, width);
+    const float oldWidth = borderWidth();
+    if (d_ptr->borderWidth) {
+        d_ptr->borderWidth->value() = newWidth;
+        if (d_ptr->borderWidth->is_dirty()) {
+            emit borderWidthChanged(newWidth);
+        }
+    } else if (!fuzzyEqual(oldWidth, newWidth)) {
+        d_ptr->borderWidth.emplace(newWidth);
+        d_ptr->borderWidth->mark_dirty();
+        emit borderWidthChanged(newWidth);
+    }
+}
+
+bool QImPlotBarsItemNode::isFillVisible() const
+{
+    return d_ptr->fillVisible;
+}
+
+void QImPlotBarsItemNode::setFillVisible(bool visible)
+{
+    if (d_ptr->fillVisible != visible) {
+        d_ptr->fillVisible = visible;
+        emit fillVisibleChanged(visible);
+    }
+}
+
+bool QImPlotBarsItemNode::isBorderVisible() const
+{
+    return d_ptr->borderVisible;
+}
+
+void QImPlotBarsItemNode::setBorderVisible(bool visible)
+{
+    if (d_ptr->borderVisible != visible) {
+        d_ptr->borderVisible = visible;
+        emit borderVisibleChanged(visible);
+    }
 }
 
 /**
@@ -267,10 +366,33 @@ bool QImPlotBarsItemNode::beginDraw()
         return false;
     }
 
-    // Apply style
-    if (d->color && d->color->is_dirty()) {
-        ImPlot::SetNextLineStyle(d->color->value());
-        d->color->mark_clean();
+    if (d->fillVisible) {
+        if (d->fillColor) {
+            ImPlot::SetNextFillStyle(d->fillColor->value());
+            d->fillColor->mark_clean();
+        }
+    } else {
+        ImPlot::SetNextFillStyle(ImVec4(0, 0, 0, 0), 0.0f);
+    }
+
+    if (d->borderVisible) {
+        const bool hasExplicitBorderColor = d->borderColor.has_value();
+        const bool hasExplicitBorderWidth = d->borderWidth.has_value();
+        if (hasExplicitBorderColor || hasExplicitBorderWidth || d->fillColor.has_value()) {
+            const ImVec4 lineColor =
+                hasExplicitBorderColor ? d->borderColor->value() :
+                                         (d->fillColor.has_value() ? d->fillColor->value() : IMPLOT_AUTO_COL);
+            const float lineWidth = hasExplicitBorderWidth ? d->borderWidth->value() : 1.0f;
+            ImPlot::SetNextLineStyle(lineColor, lineWidth);
+            if (d->borderColor) {
+                d->borderColor->mark_clean();
+            }
+            if (d->borderWidth) {
+                d->borderWidth->mark_clean();
+            }
+        }
+    } else {
+        ImPlot::SetNextLineStyle(ImVec4(0, 0, 0, 0), 0.0f);
     }
 
     // Call ImPlot API
@@ -317,10 +439,8 @@ bool QImPlotBarsItemNode::beginDraw()
     if (plotItem->Show != QImAbstractNode::isVisible()) {
         QImAbstractNode::setVisible(plotItem->Show);
     }
-    if (!d->color) {
-        // First render without explicit color, get default color from ImPlot
-        d->color = ImPlot::GetLastItemColor();
-        d->color->mark_clean();
+    if (!d->fillColor) {
+        d->autoFillColor = ImPlot::GetLastItemColor();
     }
 
     return false;
