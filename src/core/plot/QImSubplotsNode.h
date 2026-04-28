@@ -1,6 +1,7 @@
 ﻿#ifndef QIMSUBPLOTSNODE_H
 #define QIMSUBPLOTSNODE_H
 #include "QImAbstractNode.h"
+#include <initializer_list>
 #include <QSize>
 #include <vector>
 namespace QIM
@@ -100,6 +101,9 @@ public:
     QList< QImPlotNode* > plotNodes() const;
     // 创建一个绘图，这个绘图会作为subplot的子节点，如果当前subplot的绘图已经和subplot的管理数量一致，此函数返回nullptr
     QImPlotNode* createPlotNode();
+    // MATLAB风格布局：在指定的subplot位置创建或获取绘图节点，索引从1开始
+    QImPlotNode* createPlotNode(const std::vector< int >& subplotIndices);
+    QImPlotNode* createPlotNode(std::initializer_list< int > subplotIndices);
     // 追加一个绘图
     void addPlotNode(QImPlotNode* plot);
     // 插入绘图，注意plotIndex是subplot节点下面绘图节点的索引，其它节点会跳过,plotIndex可以是-1，则代表在最前面插入，可以大于等于size，代表最后插入
@@ -108,6 +112,9 @@ public:
     int plotCount() const;
     // plotNode在subplot下的索引
     int plotNodeSubplotIndex(QImPlotNode* plot);
+    // 清空手动布局信息，保留已有子节点
+    void clearManualPlotLayouts();
+    bool hasManualPlotLayouts() const;
     // 监测subplot的grid信息变化，如果为true，每次绘图都会检测行列的比例是否变化，如果变化将会发出gridInfoChanged信号
     // 此操作会在每帧都对比grid的ratios，默认为false，如果需要才开启
     bool isTrackGridRatiosEnabled() const;

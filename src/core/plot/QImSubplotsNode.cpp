@@ -1,6 +1,8 @@
 ﻿#include "QImSubplotsNode.h"
 #include "implot.h"
 #include "QtImGuiUtils.h"
+#include <algorithm>
+#include <QHash>
 #include <QList>
 #include <QDebug>
 // qim
@@ -13,9 +15,26 @@ class QImSubplotsNode::PrivateData
 {
     QIM_DECLARE_PUBLIC(QImSubplotsNode)
 public:
+    struct ManualPlotLayout
+    {
+        QPointer< QImPlotNode > plot;
+        std::vector< int > indices;
+    };
+
     PrivateData(QImSubplotsNode* q) : q_ptr(q)
     {
     }
+    std::vector< int > normalizeIndices(const std::vector< int >& indices) const;
+    bool isValidManualIndices(const std::vector< int >& indices) const;
+    bool isRectangularSelection(const std::vector< int >& indices) const;
+    bool layoutIntersects(const std::vector< int >& left, const std::vector< int >& right) const;
+    ManualPlotLayout* findManualLayout(const std::vector< int >& indices);
+    const ManualPlotLayout* findManualLayout(const std::vector< int >& indices) const;
+    void removeManualLayout(QImPlotNode* plot);
+    ImVec2 resolveTotalSize() const;
+    std::vector< float > resolveTrackSizes(int count, float totalPixels, const std::vector< float >& ratios, float spacing) const;
+    ImRect manualLayoutRect(const std::vector< int >& indices, const ImVec2& origin, const ImVec2& totalSize, const ImVec2& spacing) const;
+    void renderManualLayouts();
 
     // 属性存储（使用 QByteArray 缓存 UTF-8，避免渲染时转换）
     QByteArray titleUtf8;
@@ -31,7 +50,233 @@ public:
     };  ///< 监测subplot的grid信息变化，如果为true，每次绘图都会检测行列的比例是否变化，如果变化将会发出gridInfoChanged信号
     ImVec2 size = ImVec2(-1, -1);
     ImPlotSubplotFlags subplotFlags { ImPlotSubplotFlags_None };
+    std::vector< ManualPlotLayout > manualLayouts;
 };
+
+std::vector< int > QImSubplotsNode::PrivateData::normalizeIndices(const std::vector< int >& indices) const
+{
+    std::vector< int > normalized;
+    normalized.reserve(indices.size());
+    for (int index : indices) {
+        if (index > 0) {
+            normalized.push_back(index);
+        }
+    }
+    std::sort(normalized.begin(), normalized.end());
+    normalized.erase(std::unique(normalized.begin(), normalized.end()), normalized.end());
+    return normalized;
+}
+
+bool QImSubplotsNode::PrivateData::isValidManualIndices(const std::vector< int >& indices) const
+{
+    if (indices.empty()) {
+        return false;
+    }
+    const int maxIndex = rows * cols;
+    if (maxIndex <= 0) {
+        return false;
+    }
+    for (int index : indices) {
+        if (index < 1 || index > maxIndex) {
+            return false;
+        }
+    }
+    return isRectangularSelection(indices);
+}
+
+bool QImSubplotsNode::PrivateData::isRectangularSelection(const std::vector< int >& indices) const
+{
+    if (indices.empty() || rows <= 0 || cols <= 0) {
+        return false;
+    }
+
+    int minRow = rows;
+    int maxRow = 0;
+    int minCol = cols;
+    int maxCol = 0;
+    QHash< int, bool > indexLookup;
+    for (int index : indices) {
+        const int zeroBased = index - 1;
+        const int row = zeroBased / cols;
+        const int col = zeroBased % cols;
+        minRow = std::min(minRow, row);
+        maxRow = std::max(maxRow, row);
+        minCol = std::min(minCol, col);
+        maxCol = std::max(maxCol, col);
+        indexLookup.insert(index, true);
+    }
+
+    const int expectedCount = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+    if (expectedCount != static_cast< int >(indices.size())) {
+        return false;
+    }
+
+    for (int row = minRow; row <= maxRow; ++row) {
+        for (int col = minCol; col <= maxCol; ++col) {
+            const int index = row * cols + col + 1;
+            if (!indexLookup.contains(index)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool QImSubplotsNode::PrivateData::layoutIntersects(const std::vector< int >& left, const std::vector< int >& right) const
+{
+    for (int leftIndex : left) {
+        if (std::binary_search(right.begin(), right.end(), leftIndex)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QImSubplotsNode::PrivateData::ManualPlotLayout* QImSubplotsNode::PrivateData::findManualLayout(const std::vector< int >& indices)
+{
+    for (ManualPlotLayout& layout : manualLayouts) {
+        if (layout.indices == indices) {
+            return &layout;
+        }
+    }
+    return nullptr;
+}
+
+const QImSubplotsNode::PrivateData::ManualPlotLayout* QImSubplotsNode::PrivateData::findManualLayout(const std::vector< int >& indices) const
+{
+    for (const ManualPlotLayout& layout : manualLayouts) {
+        if (layout.indices == indices) {
+            return &layout;
+        }
+    }
+    return nullptr;
+}
+
+void QImSubplotsNode::PrivateData::removeManualLayout(QImPlotNode* plot)
+{
+    manualLayouts.erase(
+        std::remove_if(manualLayouts.begin(), manualLayouts.end(), [plot](const ManualPlotLayout& layout) { return layout.plot == plot; }),
+        manualLayouts.end());
+}
+
+ImVec2 QImSubplotsNode::PrivateData::resolveTotalSize() const
+{
+    ImVec2 totalSize = size;
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    if (totalSize.x <= 0.0f) {
+        totalSize.x = avail.x;
+    }
+    if (totalSize.y <= 0.0f) {
+        totalSize.y = avail.y;
+    }
+    return totalSize;
+}
+
+std::vector< float > QImSubplotsNode::PrivateData::resolveTrackSizes(
+    int count, float totalPixels, const std::vector< float >& ratios, float spacing) const
+{
+    std::vector< float > sizes;
+    if (count <= 0) {
+        return sizes;
+    }
+
+    sizes.resize(count, 0.0f);
+    const float availablePixels = std::max(0.0f, totalPixels - spacing * static_cast< float >(count - 1));
+    const bool useRatios = static_cast< int >(ratios.size()) == count;
+    float ratioSum = 0.0f;
+    if (useRatios) {
+        for (float ratio : ratios) {
+            ratioSum += std::max(0.0f, ratio);
+        }
+    }
+
+    if (!useRatios || ratioSum <= 0.0f) {
+        const float sizePerTrack = availablePixels / static_cast< float >(count);
+        std::fill(sizes.begin(), sizes.end(), sizePerTrack);
+        return sizes;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        sizes[ i ] = availablePixels * std::max(0.0f, ratios[ i ]) / ratioSum;
+    }
+    return sizes;
+}
+
+ImRect QImSubplotsNode::PrivateData::manualLayoutRect(
+    const std::vector< int >& indices, const ImVec2& origin, const ImVec2& totalSize, const ImVec2& spacing) const
+{
+    const std::vector< float > columnSizes = resolveTrackSizes(cols, totalSize.x, columnRatios, spacing.x);
+    const std::vector< float > rowSizes = resolveTrackSizes(rows, totalSize.y, rowRatios, spacing.y);
+
+    std::vector< float > columnOffsets(cols, 0.0f);
+    std::vector< float > rowOffsets(rows, 0.0f);
+    for (int i = 1; i < cols; ++i) {
+        columnOffsets[ i ] = columnOffsets[ i - 1 ] + columnSizes[ i - 1 ] + spacing.x;
+    }
+    for (int i = 1; i < rows; ++i) {
+        rowOffsets[ i ] = rowOffsets[ i - 1 ] + rowSizes[ i - 1 ] + spacing.y;
+    }
+
+    int minRow = rows;
+    int maxRow = 0;
+    int minCol = cols;
+    int maxCol = 0;
+    for (int index : indices) {
+        const int zeroBased = index - 1;
+        minRow = std::min(minRow, zeroBased / cols);
+        maxRow = std::max(maxRow, zeroBased / cols);
+        minCol = std::min(minCol, zeroBased % cols);
+        maxCol = std::max(maxCol, zeroBased % cols);
+    }
+
+    const ImVec2 min(origin.x + columnOffsets[ minCol ], origin.y + rowOffsets[ minRow ]);
+    float width = 0.0f;
+    float height = 0.0f;
+    for (int col = minCol; col <= maxCol; ++col) {
+        width += columnSizes[ col ];
+    }
+    for (int row = minRow; row <= maxRow; ++row) {
+        height += rowSizes[ row ];
+    }
+    width += spacing.x * static_cast< float >(maxCol - minCol);
+    height += spacing.y * static_cast< float >(maxRow - minRow);
+    return ImRect(min, ImVec2(min.x + width, min.y + height));
+}
+
+void QImSubplotsNode::PrivateData::renderManualLayouts()
+{
+    Q_Q(QImSubplotsNode);
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 totalSize = resolveTotalSize();
+    const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+    ImGui::Dummy(totalSize);
+
+    for (QImAbstractNode* child : q->childrenNodesZOrdered()) {
+        QImPlotNode* plotNode = qobject_cast< QImPlotNode* >(child);
+        if (!plotNode) {
+            continue;
+        }
+
+        auto it = std::find_if(manualLayouts.begin(), manualLayouts.end(), [plotNode](const ManualPlotLayout& layout) {
+            return layout.plot == plotNode;
+        });
+        if (it == manualLayouts.end() || !it->plot) {
+            continue;
+        }
+
+        const ImRect rect = manualLayoutRect(it->indices, origin, totalSize, spacing);
+        ImGui::SetCursorScreenPos(rect.Min);
+        ImGui::PushID(plotNode);
+        ImGui::BeginChild(
+            "##ManualSubplotCell",
+            rect.GetSize(),
+            false,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
+        plotNode->render();
+        ImGui::EndChild();
+        ImGui::PopID();
+    }
+}
 
 QImSubplotsNode::QImSubplotsNode(QObject* parent) : QImAbstractNode(parent), QIM_PIMPL_CONSTRUCT
 {
@@ -465,6 +710,9 @@ void QImSubplotsNode::setTrackGridRatiosEnabled(bool on)
 
 QImPlotNode* QImSubplotsNode::createPlotNode()
 {
+    if (hasManualPlotLayouts()) {
+        return nullptr;
+    }
     const QList< QImPlotNode* > pns = plotNodes();
     if (pns.size() >= gridCount()) {
         // 此时绘图数量和网格数量已经相等，不能再添加绘图
@@ -475,12 +723,66 @@ QImPlotNode* QImSubplotsNode::createPlotNode()
     return p;
 }
 
+QImPlotNode* QImSubplotsNode::createPlotNode(const std::vector< int >& subplotIndices)
+{
+    QIM_D(d);
+    const std::vector< int > normalized = d->normalizeIndices(subplotIndices);
+    if (!d->isValidManualIndices(normalized)) {
+        return nullptr;
+    }
+
+    if (auto* existingLayout = d->findManualLayout(normalized)) {
+        return existingLayout->plot.data();
+    }
+
+    std::vector< QImPlotNode* > overlappingPlots;
+    for (const PrivateData::ManualPlotLayout& layout : std::as_const(d->manualLayouts)) {
+        if (layout.plot && d->layoutIntersects(layout.indices, normalized)) {
+            overlappingPlots.push_back(layout.plot.data());
+        }
+    }
+    for (QImPlotNode* plot : overlappingPlots) {
+        removeChildNode(plot);
+    }
+
+    QImPlotNode* plotNode = new QImPlotNode();
+    addPlotNode(plotNode);
+    d->manualLayouts.push_back({ plotNode, normalized });
+    return plotNode;
+}
+
+QImPlotNode* QImSubplotsNode::createPlotNode(std::initializer_list< int > subplotIndices)
+{
+    return createPlotNode(std::vector< int >(subplotIndices.begin(), subplotIndices.end()));
+}
+
+void QImSubplotsNode::clearManualPlotLayouts()
+{
+    d_ptr->manualLayouts.clear();
+}
+
+bool QImSubplotsNode::hasManualPlotLayouts() const
+{
+    return !d_ptr->manualLayouts.empty();
+}
+
 // === 渲染实现 ===
 
 bool QImSubplotsNode::beginDraw()
 {
     // 调用 ImPlot API（UTF-8 缓存零开销）
     QIM_D(d);
+    d->manualLayouts.erase(
+        std::remove_if(d->manualLayouts.begin(), d->manualLayouts.end(), [](const PrivateData::ManualPlotLayout& layout) {
+            return layout.plot.isNull();
+        }),
+        d->manualLayouts.end());
+
+    if (!d->manualLayouts.empty()) {
+        d->renderManualLayouts();
+        return false;
+    }
+
     float* row_ratios = nullptr;
     float* col_ratios = nullptr;
     if (!d->rowRatios.empty() && (static_cast< int >(d->rowRatios.size()) == d->rows)) {
@@ -520,6 +822,9 @@ bool QImSubplotsNode::beginDraw()
 
 void QImSubplotsNode::endDraw()
 {
+    if (!d_ptr->manualLayouts.empty()) {
+        return;
+    }
     ImPlot::EndSubplots();
 }
 

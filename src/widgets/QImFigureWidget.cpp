@@ -16,6 +16,9 @@ public:
     QImTrackedValue< QImPlotTheme > m_theme;
     QPointer< QImSubplotsNode > m_subplotNode;
     ImPlotContext* m_context { nullptr };
+    bool m_usingMatlabLayout { false };
+    int m_matlabLayoutRows { 1 };
+    int m_matlabLayoutCols { 1 };
 };
 
 QImFigureWidget::PrivateData::PrivateData(QImFigureWidget* p) : q_ptr(p)
@@ -52,6 +55,8 @@ void QImFigureWidget::setSubplotGrid(int rows, int cols, const std::vector< floa
 {
     QIM_D(d);
     if (d->m_subplotNode) {
+        d->m_usingMatlabLayout = false;
+        d->m_subplotNode->clearManualPlotLayouts();
         d->m_subplotNode->setGrid(rows, cols, rowsRatios, colsRatios);
     }
 }
@@ -107,7 +112,41 @@ QImSubplotsNode* QImFigureWidget::subplotNode() const
  */
 QImPlotNode* QImFigureWidget::createPlotNode()
 {
+    d_ptr->m_usingMatlabLayout = false;
+    d_ptr->m_subplotNode->clearManualPlotLayouts();
     return d_ptr->m_subplotNode->createPlotNode();
+}
+
+QImPlotNode* QImFigureWidget::subplot(int rows, int cols, int index)
+{
+    return subplot(rows, cols, std::vector< int > { index });
+}
+
+QImPlotNode* QImFigureWidget::subplot(int rows, int cols, const std::vector< int >& indices)
+{
+    QIM_D(d);
+    if (!d->m_subplotNode || rows <= 0 || cols <= 0) {
+        return nullptr;
+    }
+
+    const bool layoutChanged = !d->m_usingMatlabLayout || d->m_matlabLayoutRows != rows || d->m_matlabLayoutCols != cols;
+    if (layoutChanged) {
+        const QList< QImPlotNode* > currentPlots = plotNodes();
+        for (QImPlotNode* plot : currentPlots) {
+            removePlotNode(plot);
+        }
+        d->m_subplotNode->clearManualPlotLayouts();
+        d->m_subplotNode->setGrid(rows, cols);
+        d->m_usingMatlabLayout = true;
+        d->m_matlabLayoutRows = rows;
+        d->m_matlabLayoutCols = cols;
+    }
+    return d->m_subplotNode->createPlotNode(indices);
+}
+
+QImPlotNode* QImFigureWidget::subplot(int rows, int cols, std::initializer_list< int > indices)
+{
+    return subplot(rows, cols, std::vector< int >(indices.begin(), indices.end()));
 }
 
 /**
@@ -126,11 +165,15 @@ int QImFigureWidget::plotCount() const
 
 void QImFigureWidget::addPlotNode(QImPlotNode* plot)
 {
+    d_ptr->m_usingMatlabLayout = false;
+    d_ptr->m_subplotNode->clearManualPlotLayouts();
     return d_ptr->m_subplotNode->addPlotNode(plot);
 }
 
 void QImFigureWidget::insertPlotNode(int plotIndex, QImPlotNode* plot)
 {
+    d_ptr->m_usingMatlabLayout = false;
+    d_ptr->m_subplotNode->clearManualPlotLayouts();
     return d_ptr->m_subplotNode->insertPlotNode(plotIndex, plot);
 }
 

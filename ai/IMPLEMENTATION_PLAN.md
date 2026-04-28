@@ -16,6 +16,7 @@
 ### 已完成功能
 - ✅ **基础框架搭建**：QImAbstractNode、QImPlotItemNode 基类体系
 - ✅ **ImGui 绘制封装**：Qt 与 ImGui 的桥接层
+- ✅ **Figure 子图布局**：支持规则网格布局与 MATLAB 风格 `subplot(rows, cols, index/indices)` 布局
 - ✅ **曲线绘制封装**：QImPlotLineItemNode（ImPlot::PlotLine）
 - ✅ **散点图绘制封装**：QImPlotScatterItemNode（ImPlot::PlotScatter）
 - ✅ **阶梯图绘制封装**：QImPlotStairsItemNode（ImPlot::PlotStairs）
@@ -403,6 +404,7 @@ public:
 - 新功能开发完后，需在 `examples/qimfigure-test` 中添加对应的使用示例，验证功能正确性
     - 功能应在`examples/qimfigure-test`的`void drawPlot2D()`函数中增加对应示例
     - 散点图示例：已在`drawPlot2D()`中添加随机数据散点图，包含标记大小、形状、颜色等自定义设置
+- `examples/qimfigure-subplot-layout-test` 已扩展为交互式布局测试器，可手动输入 2D subplot 布局，并测试 3D 坐标系在任意网格槽位中的创建效果
 
 ## Git 提交
 

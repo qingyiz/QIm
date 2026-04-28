@@ -1,6 +1,7 @@
 ﻿#ifndef QIMFIGUREWIDGET_H
 #define QIMFIGUREWIDGET_H
 #include "QImWidget.h"
+#include <initializer_list>
 #include <QWidget>
 #include "QImPlotTheme.h"
 #include <vector>
@@ -49,6 +50,10 @@ public:
     // ===========================
     // 创建一个绘图，这个绘图会作为subplot的子节点，如果当前subplot的绘图已经和subplot的管理数量一致，此函数返回nullptr
     QImPlotNode* createPlotNode();
+    // MATLAB风格subplot接口：索引从1开始，支持跨格矩形区域
+    QImPlotNode* subplot(int rows, int cols, int index);
+    QImPlotNode* subplot(int rows, int cols, const std::vector< int >& indices);
+    QImPlotNode* subplot(int rows, int cols, std::initializer_list< int > indices);
     // 获取所有绘图节点
     QList< QImPlotNode* > plotNodes() const;
     // 绘图的数量
