@@ -31,6 +31,8 @@ class QIM_CORE_API QImPlotLineItemNode : public QImPlotItemNode
         QColor markerOutlineColor READ markerOutlineColor WRITE setMarkerOutlineColor NOTIFY markerOutlineColorChanged)
     Q_PROPERTY(
         bool directionArrowsVisible READ isDirectionArrowsVisible WRITE setDirectionArrowsVisible NOTIFY directionArrowsVisibilityChanged)
+    Q_PROPERTY(bool adaptiveSampling READ isAdaptiveSampling WRITE setAdaptiveSampling NOTIFY adaptiveSamplingChanged)
+    Q_PROPERTY(int downsampleThreshold READ downsampleThreshold WRITE setDownsampleThreshold NOTIFY downsampleThresholdChanged)
 public:
     QImPlotLineItemNode(QObject* par = nullptr);
     ~QImPlotLineItemNode();
@@ -110,7 +112,10 @@ public:
     // name
     //===============================================================
     void setAdaptivesSampling(bool on);
+    void setAdaptiveSampling(bool on);
     bool isAdaptiveSampling() const;
+    int downsampleThreshold() const;
+    void setDownsampleThreshold(int threshold);
 Q_SIGNALS:
     void lineFlagChanged();
     void colorChanged(const QColor& color);
@@ -123,6 +128,8 @@ Q_SIGNALS:
     void markerOutlineColorChanged(const QColor& color);
     void zDataChanged();
     void directionArrowsVisibilityChanged(bool visible);
+    void adaptiveSamplingChanged(bool enabled);
+    void downsampleThresholdChanged(int threshold);
 
 protected:
     virtual bool beginDraw() override;

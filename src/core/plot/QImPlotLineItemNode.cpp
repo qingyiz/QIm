@@ -50,6 +50,16 @@ public:
 
 namespace
 {
+constexpr int kSafeRenderPointLimit = 12000;
+
+int effectiveDownsampleTarget(bool adaptiveSampling, int requestedThreshold)
+{
+    if (adaptiveSampling) {
+        return std::min(requestedThreshold, kSafeRenderPointLimit);
+    }
+    return kSafeRenderPointLimit;
+}
+
 enum class DirectionZOrder
 {
     None,
@@ -357,18 +367,18 @@ QImPlotLineItemNode::PrivateData::PrivateData(QImPlotLineItemNode* p) : q_ptr(p)
  */
 void QImPlotLineItemNode::PrivateData::resetDownSamplerData()
 {
-    if (isAdaptiveSampling) {
-        if (data && (data->size() > downsampleThreshold)) {
+    dataLTTB.reset(nullptr);
+    if (data) {
+        const int targetPoints = effectiveDownsampleTarget(isAdaptiveSampling, downsampleThreshold);
+        if (data->size() > targetPoints) {
 #if 0
-            QImLTTBDownsampler* lttb = new QImLTTBDownsampler(data.get(), downsampleThreshold);
+            QImLTTBDownsampler* lttb = new QImLTTBDownsampler(data.get(), targetPoints);
             dataLTTB.reset(lttb);
 #else
-            QImMinMaxLTTBDownsampler* lttb = new QImMinMaxLTTBDownsampler(data.get(), downsampleThreshold);
+            QImMinMaxLTTBDownsampler* lttb = new QImMinMaxLTTBDownsampler(data.get(), targetPoints);
             dataLTTB.reset(lttb);
 #endif
         }
-    } else {
-        dataLTTB.reset(nullptr);
     }
 }
 //----------------------------------------------------
@@ -688,13 +698,37 @@ bool QImPlotLineItemNode::isDirectionArrowsVisible() const
 
 void QImPlotLineItemNode::setAdaptivesSampling(bool on)
 {
+    setAdaptiveSampling(on);
+}
+
+void QImPlotLineItemNode::setAdaptiveSampling(bool on)
+{
+    if (d_ptr->isAdaptiveSampling == on) {
+        return;
+    }
     d_ptr->isAdaptiveSampling = on;
     d_ptr->resetDownSamplerData();
+    emit adaptiveSamplingChanged(on);
 }
 
 bool QImPlotLineItemNode::isAdaptiveSampling() const
 {
     return d_ptr->isAdaptiveSampling;
+}
+
+int QImPlotLineItemNode::downsampleThreshold() const
+{
+    return d_ptr->downsampleThreshold;
+}
+
+void QImPlotLineItemNode::setDownsampleThreshold(int threshold)
+{
+    if (threshold <= 0 || d_ptr->downsampleThreshold == threshold) {
+        return;
+    }
+    d_ptr->downsampleThreshold = threshold;
+    d_ptr->resetDownSamplerData();
+    emit downsampleThresholdChanged(threshold);
 }
 
 // ===== 标志访问器实现（带 Doxygen 注释）=====
@@ -844,7 +878,7 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
         return false;
     }
     QImAbstractXYDataSeries* series = d->data.get();
-    if (d->isAdaptiveSampling && d->dataLTTB) {
+    if (d->dataLTTB) {
         series = d->dataLTTB.get();
     }
     if (!series) {
