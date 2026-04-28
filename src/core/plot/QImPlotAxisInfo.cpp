@@ -20,6 +20,7 @@ public:
     ImPlotAxisFlags tempFlags { ImPlotAxisFlags_None };  ///< 针对X1和Y1设置enable==false时，把原有的flag保存下来，以便设置为true时还原
     QImTrackedValue< ImPlotScale > scale { ImPlotScale_Linear };
     ImPlotCond limitCond { ImPlotCond_Once };
+    std::vector< double > ticks;
     bool enable { false };  ///< 对于X1和Y1设置为无效是把flag设置为
     QImPlotNode* plot { nullptr };
 };
@@ -254,6 +255,36 @@ void QImPlotAxisInfo::setLimits(double min, double max, QImPlotCondition cond)
     if (d->minLimits.is_dirty() || d->maxLimits.is_dirty()) {
         Q_EMIT limitsChanged(d->maxLimits.value(), d->maxLimits.value());
     }
+}
+
+std::vector< double > QImPlotAxisInfo::ticks() const
+{
+    return d_ptr->ticks;
+}
+
+void QImPlotAxisInfo::setTicks(const std::vector< double >& ticks)
+{
+    QIM_D(d);
+    if (d->ticks == ticks) {
+        return;
+    }
+    d->ticks = ticks;
+    Q_EMIT ticksChanged();
+}
+
+void QImPlotAxisInfo::setTicks(std::initializer_list< double > ticks)
+{
+    setTicks(std::vector< double >(ticks.begin(), ticks.end()));
+}
+
+void QImPlotAxisInfo::clearTicks()
+{
+    setTicks({});
+}
+
+bool QImPlotAxisInfo::hasCustomTicks() const
+{
+    return !d_ptr->ticks.empty();
 }
 
 // ===== 标志访问器实现 =====
@@ -1298,6 +1329,9 @@ void QImPlotAxisInfo::render()
     }
     if (d->scale.is_dirty()) {
         ImPlot::SetupAxisScale(d->axisId, d->scale.value());
+    }
+    if (!d->ticks.empty()) {
+        ImPlot::SetupAxisTicks(d->axisId, d->ticks.data(), static_cast< int >(d->ticks.size()), nullptr, false);
     }
 }
 

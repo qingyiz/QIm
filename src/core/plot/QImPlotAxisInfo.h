@@ -1,6 +1,8 @@
 ﻿#ifndef QIMPLOTAXISINFO_H
 #define QIMPLOTAXISINFO_H
+#include <initializer_list>
 #include <QObject>
+#include <vector>
 #include "QImAPI.h"
 #include "QImPlot.h"
 namespace QIM
@@ -90,6 +92,12 @@ public:
     void setLimitsCondition(QImPlotCondition v);
 
     void setLimits(double min, double max, QImPlotCondition cond = QImPlotCondition::Once);
+    // 自定义刻度位置：设置后仅显示这些刻度，清空后恢复 ImPlot 默认刻度
+    std::vector< double > ticks() const;
+    void setTicks(const std::vector< double >& ticks);
+    void setTicks(std::initializer_list< double > ticks);
+    void clearTicks();
+    bool hasCustomTicks() const;
     // About ImPlotAxisFlags / 这里为了适应Qt的命名习惯，设置为肯定语义
     // Corresponds to ImPlotAxisFlags::ImPlotAxisFlags_AutoFit / cn:对应ImPlotAxisFlags::ImPlotAxisFlags_AutoFit
     bool isAutoFit() const;
@@ -201,8 +209,9 @@ Q_SIGNALS:
      * @warning 值**不**验证 min < max；无效范围（min >= max）可能导致 ImPlot 渲染问题。
      * @see setLimits(), ImPlot::SetupAxisLimits()
      * \endif
-     */
+    */
     void limitsChanged(double min, double max);
+    void ticksChanged();
 
     /**
      * \if ENGLISH

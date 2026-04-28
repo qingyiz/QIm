@@ -432,6 +432,23 @@ void MainWindow::drawPlot2D()
         hist->setDensity(true);
         hist->setFillColor(QColor(33, 150, 243, 180));
     }
+
+    if (QIM::QImPlotNode* plot12 = fig->createPlotNode()) {
+        plot12->x1Axis()->setLabel(u8"custom x ticks");
+        plot12->y1Axis()->setLabel(u8"custom y ticks");
+        plot12->x1Axis()->setTicks({ 1.0, 2.0, 3.0, 8.0 });
+        plot12->y1Axis()->setTicks({ -1.0, 0.0, 1.0 });
+        plot12->setTitle("Custom Axis Ticks");
+        plot12->setLegendEnabled(true);
+
+        std::vector< double > xData(120);
+        std::vector< double > yData(120);
+        for (int i = 0; i < 120; ++i) {
+            xData[ i ] = 0.1 * static_cast< double >(i);
+            yData[ i ] = std::sin(xData[ i ]);
+        }
+        plot12->addLine(xData, yData, "Only selected ticks");
+    }
 }
 
 void MainWindow::drawPlot3D()
