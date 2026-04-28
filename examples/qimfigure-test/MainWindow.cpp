@@ -22,6 +22,7 @@
 #include "plot/QImPlotPieChartItemNode.h"
 #include "plot/QImPlotTextItemNode.h"
 #include "plot/QImPlotDummyItemNode.h"
+#include "plot/QImPlotLineItemNode.h"
 #include "implot.h"
 #include <QVBoxLayout>
 #include <cmath>
@@ -110,6 +111,14 @@ void MainWindow::drawPlot2D()
         scatter->setMarkerShape(ImPlotMarker_Circle);
         scatter->setMarkerFill(true);
         scatter->setColor(Qt::blue);
+        QIM::QImPlotHighlightRule scatterHighlight;
+        scatterHighlight.enabled = true;
+        scatterHighlight.axis = QIM::QImPlotHighlightRule::Axis::X;
+        scatterHighlight.mode = QIM::QImPlotHighlightRule::Mode::Between;
+        scatterHighlight.minValue = -0.5;
+        scatterHighlight.maxValue = 0.5;
+        scatterHighlight.color = QColor(230, 120, 20);
+        scatter->setHighlightRule(scatterHighlight);
 
         // 添加值跟踪器
         QIM::QImPlotValueTrackerNode* tracker = new QIM::QImPlotValueTrackerNode(plot3);
@@ -447,7 +456,14 @@ void MainWindow::drawPlot2D()
             xData[ i ] = 0.1 * static_cast< double >(i);
             yData[ i ] = std::sin(xData[ i ]);
         }
-        plot12->addLine(xData, yData, "Only selected ticks");
+        QIM::QImPlotLineItemNode* line = plot12->addLine(xData, yData, "Only selected ticks");
+        QIM::QImPlotHighlightRule lineHighlight;
+        lineHighlight.enabled = true;
+        lineHighlight.axis = QIM::QImPlotHighlightRule::Axis::Y;
+        lineHighlight.mode = QIM::QImPlotHighlightRule::Mode::GreaterThan;
+        lineHighlight.minValue = 0.7;
+        lineHighlight.color = QColor(220, 38, 38);
+        line->setHighlightRule(lineHighlight);
     }
 }
 

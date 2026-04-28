@@ -2,6 +2,7 @@
 #define QIMPLOTSCATTERITEMNODE_H
 #include "QImPlotItemNode.h"
 #include "QImPlotDataSeries.h"
+#include "QImPlotHighlightRule.h"
 
 namespace QIM
 {
@@ -280,6 +281,11 @@ public:
     // Sets the marker color
     void setColor(const QColor& color);
 
+    void setHighlightRule(const QImPlotHighlightRule& rule);
+    QImPlotHighlightRule highlightRule() const;
+    void clearHighlightRule();
+    bool hasHighlightRule() const;
+
 Q_SIGNALS:
     /**
      * \if ENGLISH
@@ -382,6 +388,7 @@ Q_SIGNALS:
      * \endif
      */
     void colorChanged(const QColor& color);
+    void highlightRuleChanged();
 
     /**
      * \if ENGLISH

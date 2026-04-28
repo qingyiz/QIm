@@ -1,4 +1,5 @@
 ﻿#include "QImPlotLineItemNode.h"
+#include <algorithm>
 #include <numeric>
 #include <optional>
 #include "QImPlotDataSeries.h"
@@ -45,6 +46,7 @@ public:
     std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > markerOutlineColor;  ///< 点轮廓颜色
     std::vector< double > zData;                                                             ///< 用于指定曲线方向的数据
     bool directionArrowsVisible { true };
+    std::optional< QImPlotHighlightRule > highlightRule;
     bool isPlotItemVisible;
 };
 
@@ -58,6 +60,91 @@ int effectiveDownsampleTarget(bool adaptiveSampling, int requestedThreshold)
         return std::min(requestedThreshold, kSafeRenderPointLimit);
     }
     return kSafeRenderPointLimit;
+}
+
+double highlightRuleValue(QImPlotHighlightRule::Axis axis, double x, double y)
+{
+    return axis == QImPlotHighlightRule::Axis::X ? x : y;
+}
+
+std::optional< std::pair< double, double > > highlightSegmentInterval(
+    const QImPlotHighlightRule& rawRule, double x0, double y0, double x1, double y1)
+{
+    const QImPlotHighlightRule rule = rawRule.normalized();
+    if (!rule.enabled) {
+        return std::nullopt;
+    }
+
+    const double v0 = highlightRuleValue(rule.axis, x0, y0);
+    const double v1 = highlightRuleValue(rule.axis, x1, y1);
+
+    if (!std::isfinite(v0) || !std::isfinite(v1)) {
+        return std::nullopt;
+    }
+
+    auto constantInterval = [&](bool matched) -> std::optional< std::pair< double, double > > {
+        return matched ? std::make_optional(std::make_pair(0.0, 1.0)) : std::nullopt;
+    };
+
+    if (std::abs(v1 - v0) <= 1e-12) {
+        switch (rule.mode) {
+        case QImPlotHighlightRule::Mode::Between:
+            return constantInterval(v0 >= rule.minValue && v0 <= rule.maxValue);
+        case QImPlotHighlightRule::Mode::LessThan:
+            return constantInterval(v0 < rule.maxValue);
+        case QImPlotHighlightRule::Mode::GreaterThan:
+            return constantInterval(v0 > rule.minValue);
+        }
+    }
+
+    auto clampInterval = [](double a, double b) -> std::optional< std::pair< double, double > > {
+        const double start = std::clamp(std::min(a, b), 0.0, 1.0);
+        const double end = std::clamp(std::max(a, b), 0.0, 1.0);
+        if (end <= start) {
+            return std::nullopt;
+        }
+        return std::make_optional(std::make_pair(start, end));
+    };
+
+    switch (rule.mode) {
+    case QImPlotHighlightRule::Mode::Between: {
+        const double t0 = (rule.minValue - v0) / (v1 - v0);
+        const double t1 = (rule.maxValue - v0) / (v1 - v0);
+        return clampInterval(t0, t1);
+    }
+    case QImPlotHighlightRule::Mode::LessThan: {
+        if (v0 < rule.maxValue && v1 < rule.maxValue) {
+            return std::make_optional(std::make_pair(0.0, 1.0));
+        }
+        const double t = (rule.maxValue - v0) / (v1 - v0);
+        if (v0 < rule.maxValue) {
+            return clampInterval(0.0, t);
+        }
+        if (v1 < rule.maxValue) {
+            return clampInterval(t, 1.0);
+        }
+        return std::nullopt;
+    }
+    case QImPlotHighlightRule::Mode::GreaterThan: {
+        if (v0 > rule.minValue && v1 > rule.minValue) {
+            return std::make_optional(std::make_pair(0.0, 1.0));
+        }
+        const double t = (rule.minValue - v0) / (v1 - v0);
+        if (v0 > rule.minValue) {
+            return clampInterval(0.0, t);
+        }
+        if (v1 > rule.minValue) {
+            return clampInterval(t, 1.0);
+        }
+        return std::nullopt;
+    }
+    }
+    return std::nullopt;
+}
+
+ImPlotPoint interpolatePoint(const ImPlotPoint& p0, const ImPlotPoint& p1, double t)
+{
+    return ImPlotPoint(p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t);
 }
 
 enum class DirectionZOrder
@@ -356,6 +443,44 @@ void drawDirectionArrows(
         }
     }
 }
+
+void drawHighlightedLineSegments(
+    QImAbstractXYDataSeries* series,
+    const QImPlotHighlightRule& rule,
+    Qt::PenStyle style,
+    float width,
+    ImU32 color,
+    QImPlotAxisId xAxisId,
+    QImPlotAxisId yAxisId)
+{
+    if (!series || series->size() < 2 || style == Qt::NoPen || !rule.enabled) {
+        return;
+    }
+
+    ImDrawList* drawList = ImPlot::GetPlotDrawList();
+    if (!drawList) {
+        return;
+    }
+
+    for (int i = 1; i < series->size(); ++i) {
+        const ImPlotPoint p0(series->xValue(i - 1), series->yValue(i - 1));
+        const ImPlotPoint p1(series->xValue(i), series->yValue(i));
+        if (!std::isfinite(p0.x) || !std::isfinite(p0.y) || !std::isfinite(p1.x) || !std::isfinite(p1.y)) {
+            continue;
+        }
+
+        const auto interval = highlightSegmentInterval(rule, p0.x, p0.y, p1.x, p1.y);
+        if (!interval) {
+            continue;
+        }
+
+        const ImPlotPoint hp0 = interpolatePoint(p0, p1, interval->first);
+        const ImPlotPoint hp1 = interpolatePoint(p0, p1, interval->second);
+        const ImVec2 pp0 = ImPlot::PlotToPixels(hp0, static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+        const ImVec2 pp1 = ImPlot::PlotToPixels(hp1, static_cast< ImAxis >(toImAxis(xAxisId)), static_cast< ImAxis >(toImAxis(yAxisId)));
+        drawStyledSegment(drawList, pp0, pp1, style == Qt::SolidLine ? Qt::SolidLine : style, width, color);
+    }
+}
 }  // namespace
 
 QImPlotLineItemNode::PrivateData::PrivateData(QImPlotLineItemNode* p) : q_ptr(p)
@@ -396,9 +521,7 @@ void QImPlotLineItemNode::setData(QImAbstractXYDataSeries* series)
 {
     QIM_D(d);
     d->data.reset(series);
-    if (d->isAdaptiveSampling) {
-        d->resetDownSamplerData();
-    }
+    d->resetDownSamplerData();
 }
 
 
@@ -696,6 +819,35 @@ bool QImPlotLineItemNode::isDirectionArrowsVisible() const
     return d_ptr->directionArrowsVisible;
 }
 
+void QImPlotLineItemNode::setHighlightRule(const QImPlotHighlightRule& rule)
+{
+    const QImPlotHighlightRule normalized = rule.normalized();
+    if (d_ptr->highlightRule && d_ptr->highlightRule.value() == normalized) {
+        return;
+    }
+    d_ptr->highlightRule = normalized;
+    emit highlightRuleChanged();
+}
+
+QImPlotHighlightRule QImPlotLineItemNode::highlightRule() const
+{
+    return d_ptr->highlightRule.value_or(QImPlotHighlightRule {});
+}
+
+void QImPlotLineItemNode::clearHighlightRule()
+{
+    if (!d_ptr->highlightRule.has_value()) {
+        return;
+    }
+    d_ptr->highlightRule.reset();
+    emit highlightRuleChanged();
+}
+
+bool QImPlotLineItemNode::hasHighlightRule() const
+{
+    return d_ptr->highlightRule.has_value() && d_ptr->highlightRule->enabled;
+}
+
 void QImPlotLineItemNode::setAdaptivesSampling(bool on)
 {
     setAdaptiveSampling(on);
@@ -954,7 +1106,9 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
     }
     const bool shouldDrawDirectionArrows =
         d->directionArrowsVisible && (d->lineStyle != Qt::NoPen) && (directionZOrder(d->zData) == DirectionZOrder::Monotonic);
-    const bool shouldDrawOverlay = plotItem && plotItem->Show && (customStyledLine || shouldDrawDirectionArrows);
+    const bool shouldDrawHighlight =
+        plotItem && plotItem->Show && d->lineStyle != Qt::NoPen && d->highlightRule.has_value() && d->highlightRule->enabled;
+    const bool shouldDrawOverlay = plotItem && plotItem->Show && (customStyledLine || shouldDrawDirectionArrows || shouldDrawHighlight);
     if (shouldDrawOverlay) {
         ImPlot::PushPlotClipRect();
         if (customStyledLine) {
@@ -969,6 +1123,15 @@ QImPlotLineItemNode_FLAG_ACCESSOR(Shaded, ImPlotLineFlags_Shaded)
         if (shouldDrawDirectionArrows) {
             drawDirectionArrows(
                 d->data.get(), d->lineFlags, d->zData, std::max(d->lineWidth.value(), 1.0f), plotItem->Color, xAxisId(), yAxisId());
+        }
+        if (shouldDrawHighlight) {
+            drawHighlightedLineSegments(series,
+                                        d->highlightRule.value(),
+                                        d->lineStyle,
+                                        std::max(d->lineWidth.value(), 1.0f),
+                                        toImU32(d->highlightRule->color),
+                                        xAxisId(),
+                                        yAxisId());
         }
         ImPlot::PopPlotClipRect();
     }

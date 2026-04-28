@@ -37,6 +37,7 @@ public:
     bool markerFill { true };
     std::optional< QImTrackedValue< ImVec4, ImVecComparator< ImVec4 > > > color;  ///< 颜色
     QImTrackedValue< float > markerSize { 4.0f };                                 ///< 标记大小
+    std::optional< QImPlotHighlightRule > highlightRule;
     bool isPlotItemVisible;
 };
 
@@ -431,6 +432,35 @@ void QImPlotScatterItemNode::setColor(const QColor& c)
     }
 }
 
+void QImPlotScatterItemNode::setHighlightRule(const QImPlotHighlightRule& rule)
+{
+    const QImPlotHighlightRule normalized = rule.normalized();
+    if (d_ptr->highlightRule && d_ptr->highlightRule.value() == normalized) {
+        return;
+    }
+    d_ptr->highlightRule = normalized;
+    emit highlightRuleChanged();
+}
+
+QImPlotHighlightRule QImPlotScatterItemNode::highlightRule() const
+{
+    return d_ptr->highlightRule.value_or(QImPlotHighlightRule {});
+}
+
+void QImPlotScatterItemNode::clearHighlightRule()
+{
+    if (!d_ptr->highlightRule.has_value()) {
+        return;
+    }
+    d_ptr->highlightRule.reset();
+    emit highlightRuleChanged();
+}
+
+bool QImPlotScatterItemNode::hasHighlightRule() const
+{
+    return d_ptr->highlightRule.has_value() && d_ptr->highlightRule->enabled;
+}
+
 /**
  * @brief 绘图
  * @return  这里直接返回false，避免调用endDraw
@@ -504,6 +534,31 @@ bool QImPlotScatterItemNode::beginDraw()
         // 一般是首次渲染，且没设定颜色，这时是implot给的默认颜色，把这个默认颜色获取到
         d->color = ImPlot::GetLastItemColor();
         d->color->mark_clean();
+    }
+    if (plotItem && plotItem->Show && d->highlightRule && d->highlightRule->enabled) {
+        std::vector< double > highlightX;
+        std::vector< double > highlightY;
+        highlightX.reserve(series->size());
+        highlightY.reserve(series->size());
+        for (int i = 0; i < series->size(); ++i) {
+            const double x = series->xValue(i);
+            const double y = series->yValue(i);
+            if (!std::isfinite(x) || !std::isfinite(y)) {
+                continue;
+            }
+            if (d->highlightRule->matches(x, y)) {
+                highlightX.push_back(x);
+                highlightY.push_back(y);
+            }
+        }
+        if (!highlightX.empty()) {
+            const ImVec4 highlightColor = toImVec4(d->highlightRule->color);
+            const ImVec4 highlightFill = d->markerFill ? highlightColor : ImVec4(0, 0, 0, 0);
+            ImPlot::SetNextMarkerStyle(marker, size, highlightFill, IMPLOT_AUTO, highlightColor);
+            ImGui::PushID(this);
+            ImPlot::PlotScatter("##HighlightScatter", highlightX.data(), highlightY.data(), static_cast< int >(highlightX.size()));
+            ImGui::PopID();
+        }
     }
     // 绘图之后，更新状态
 

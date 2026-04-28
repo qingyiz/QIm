@@ -4,6 +4,7 @@
 #include <vector>
 #include "QImPlotItemNode.h"
 #include "QImPlotDataSeries.h"
+#include "QImPlotHighlightRule.h"
 
 namespace QIM
 {
@@ -108,6 +109,10 @@ public:
     QColor markerOutlineColor() const;
     void setDirectionArrowsVisible(bool on);
     bool isDirectionArrowsVisible() const;
+    void setHighlightRule(const QImPlotHighlightRule& rule);
+    QImPlotHighlightRule highlightRule() const;
+    void clearHighlightRule();
+    bool hasHighlightRule() const;
     //===============================================================
     // name
     //===============================================================
@@ -128,6 +133,7 @@ Q_SIGNALS:
     void markerOutlineColorChanged(const QColor& color);
     void zDataChanged();
     void directionArrowsVisibilityChanged(bool visible);
+    void highlightRuleChanged();
     void adaptiveSamplingChanged(bool enabled);
     void downsampleThresholdChanged(int threshold);
 
