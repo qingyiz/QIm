@@ -32,6 +32,9 @@ public:
     const ManualPlotLayout* findManualLayout(const std::vector< int >& indices) const;
     void removeManualLayout(QImPlotNode* plot);
     ImVec2 resolveTotalSize() const;
+    ImVec2 resolveContentSize(const ImVec2& visibleSize) const;
+    bool beginScrollableArea(const ImVec2& visibleSize, const ImVec2& contentSize);
+    void endScrollableArea();
     std::vector< float > resolveTrackSizes(int count, float totalPixels, const std::vector< float >& ratios, float spacing) const;
     ImRect manualLayoutRect(const std::vector< int >& indices, const ImVec2& origin, const ImVec2& totalSize, const ImVec2& spacing) const;
     void renderManualLayouts();
@@ -49,6 +52,8 @@ public:
         false
     };  ///< 监测subplot的grid信息变化，如果为true，每次绘图都会检测行列的比例是否变化，如果变化将会发出gridInfoChanged信号
     ImVec2 size = ImVec2(-1, -1);
+    ImVec2 minimumPlotSize = ImVec2(0, 0);
+    bool scrollableAreaOpen = false;
     ImPlotSubplotFlags subplotFlags { ImPlotSubplotFlags_None };
     std::vector< ManualPlotLayout > manualLayouts;
 };
@@ -172,6 +177,47 @@ ImVec2 QImSubplotsNode::PrivateData::resolveTotalSize() const
     return totalSize;
 }
 
+ImVec2 QImSubplotsNode::PrivateData::resolveContentSize(const ImVec2& visibleSize) const
+{
+    ImVec2 contentSize = visibleSize;
+    const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+
+    if (minimumPlotSize.x > 0.0f && cols > 0) {
+        const float minWidth =
+            minimumPlotSize.x * static_cast< float >(cols) + spacing.x * static_cast< float >(std::max(0, cols - 1));
+        contentSize.x = std::max(contentSize.x, minWidth);
+    }
+    if (minimumPlotSize.y > 0.0f && rows > 0) {
+        const float minHeight =
+            minimumPlotSize.y * static_cast< float >(rows) + spacing.y * static_cast< float >(std::max(0, rows - 1));
+        contentSize.y = std::max(contentSize.y, minHeight);
+    }
+    return contentSize;
+}
+
+bool QImSubplotsNode::PrivateData::beginScrollableArea(const ImVec2& visibleSize, const ImVec2& contentSize)
+{
+    scrollableAreaOpen = false;
+    const bool needsHorizontalScroll = contentSize.x > visibleSize.x + epsilon;
+    const bool needsVerticalScroll   = contentSize.y > visibleSize.y + epsilon;
+    if (!needsHorizontalScroll && !needsVerticalScroll) {
+        return false;
+    }
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_HorizontalScrollbar;
+    ImGui::BeginChild("##SubplotsScrollArea", visibleSize, false, flags);
+    scrollableAreaOpen = true;
+    return true;
+}
+
+void QImSubplotsNode::PrivateData::endScrollableArea()
+{
+    if (scrollableAreaOpen) {
+        ImGui::EndChild();
+        scrollableAreaOpen = false;
+    }
+}
+
 std::vector< float > QImSubplotsNode::PrivateData::resolveTrackSizes(
     int count, float totalPixels, const std::vector< float >& ratios, float spacing) const
 {
@@ -246,10 +292,13 @@ ImRect QImSubplotsNode::PrivateData::manualLayoutRect(
 void QImSubplotsNode::PrivateData::renderManualLayouts()
 {
     Q_Q(QImSubplotsNode);
+    const ImVec2 visibleSize = resolveTotalSize();
+    const ImVec2 contentSize = resolveContentSize(visibleSize);
+    beginScrollableArea(visibleSize, contentSize);
+
     const ImVec2 origin = ImGui::GetCursorScreenPos();
-    const ImVec2 totalSize = resolveTotalSize();
     const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
-    ImGui::Dummy(totalSize);
+    ImGui::Dummy(contentSize);
 
     for (QImAbstractNode* child : q->childrenNodesZOrdered()) {
         QImPlotNode* plotNode = qobject_cast< QImPlotNode* >(child);
@@ -264,7 +313,7 @@ void QImSubplotsNode::PrivateData::renderManualLayouts()
             continue;
         }
 
-        const ImRect rect = manualLayoutRect(it->indices, origin, totalSize, spacing);
+        const ImRect rect = manualLayoutRect(it->indices, origin, contentSize, spacing);
         ImGui::SetCursorScreenPos(rect.Min);
         ImGui::PushID(plotNode);
         ImGui::BeginChild(
@@ -276,6 +325,7 @@ void QImSubplotsNode::PrivateData::renderManualLayouts()
         ImGui::EndChild();
         ImGui::PopID();
     }
+    endScrollableArea();
 }
 
 QImSubplotsNode::QImSubplotsNode(QObject* parent) : QImAbstractNode(parent), QIM_PIMPL_CONSTRUCT
@@ -408,6 +458,21 @@ void QImSubplotsNode::setSize(const QSizeF& size)
 
     if (fuzzyEqual(d->size, newSize)) {
         d->size = newSize;
+    }
+}
+
+QSizeF QImSubplotsNode::minimumPlotSize() const
+{
+    QIM_DC(d);
+    return toQSizeF(d->minimumPlotSize);
+}
+
+void QImSubplotsNode::setMinimumPlotSize(const QSizeF& size)
+{
+    QIM_D(d);
+    ImVec2 newSize(std::max(0.0, size.width()), std::max(0.0, size.height()));
+    if (!fuzzyEqual(d->minimumPlotSize, newSize)) {
+        d->minimumPlotSize = newSize;
     }
 }
 
@@ -772,6 +837,7 @@ bool QImSubplotsNode::beginDraw()
 {
     // 调用 ImPlot API（UTF-8 缓存零开销）
     QIM_D(d);
+    d->scrollableAreaOpen = false;
     d->manualLayouts.erase(
         std::remove_if(d->manualLayouts.begin(), d->manualLayouts.end(), [](const PrivateData::ManualPlotLayout& layout) {
             return layout.plot.isNull();
@@ -781,6 +847,14 @@ bool QImSubplotsNode::beginDraw()
     if (!d->manualLayouts.empty()) {
         d->renderManualLayouts();
         return false;
+    }
+
+    const bool hasMinimumPlotSize = d->minimumPlotSize.x > 0.0f || d->minimumPlotSize.y > 0.0f;
+    ImVec2 subplotSize = d->size;
+    if (hasMinimumPlotSize) {
+        const ImVec2 visibleSize = d->resolveTotalSize();
+        subplotSize = d->resolveContentSize(visibleSize);
+        d->beginScrollableArea(visibleSize, subplotSize);
     }
 
     float* row_ratios = nullptr;
@@ -794,10 +868,13 @@ bool QImSubplotsNode::beginDraw()
     bool on = ImPlot::BeginSubplots(d_ptr->titleUtf8.isEmpty() ? "##Subplots" : d_ptr->titleUtf8.constData(),
                                     d_ptr->rows,
                                     d_ptr->cols,
-                                    d_ptr->size,
+                                    subplotSize,
                                     d_ptr->subplotFlags,
                                     row_ratios,
                                     col_ratios);
+    if (!on) {
+        d->endScrollableArea();
+    }
     // 检测row_ratios和col_ratios是否发生了变化，变化则发出gridInfoChanged信号
     if (d->trackGridRatios) {
         bool isGridChanged { false };
@@ -826,6 +903,7 @@ void QImSubplotsNode::endDraw()
         return;
     }
     ImPlot::EndSubplots();
+    d_ptr->endScrollableArea();
 }
 
 }  // namespace QIM

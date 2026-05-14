@@ -15,6 +15,7 @@ class QIM_CORE_API QImSubplotsNode : public QImAbstractNode
     Q_PROPERTY(int rows READ rows WRITE setRows NOTIFY gridInfoChanged)
     Q_PROPERTY(int cols READ columns WRITE setColumns NOTIFY gridInfoChanged)
     Q_PROPERTY(QSizeF size READ size WRITE setSize)
+    Q_PROPERTY(QSizeF minimumPlotSize READ minimumPlotSize WRITE setMinimumPlotSize)
     // 语义化标志属性（内部映射到单一 ImPlotSubplotFlags）
     Q_PROPERTY(bool isTitleEnabled READ isTitleEnabled WRITE setTitleEnabled NOTIFY titleChanged)
     Q_PROPERTY(bool isLegendEnabled READ isLegendEnabled WRITE setLegendEnabled NOTIFY subplotFlagChanged)
@@ -60,6 +61,17 @@ public:
                  const std::vector< float >& col_ratios = std::vector< float >());
     QSizeF size() const;
     void setSize(const QSizeF& size);
+
+    /**
+     * @brief 单个 subplot 的最小可视尺寸
+     *
+     * 当 rows/cols 很大导致单个图表被压缩时，可设置该值保证每个 subplot 至少拥有指定像素尺寸。
+     * 若整个 subplot 网格超过当前可用区域，会自动出现水平/垂直滚动条。
+     *
+     * QSizeF(0, 0) 表示不限制，保持默认自适应行为。
+     */
+    QSizeF minimumPlotSize() const;
+    void setMinimumPlotSize(const QSizeF& size);
 
     // 语义化标志属性
     bool isTitleEnabled() const;

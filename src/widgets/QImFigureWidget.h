@@ -2,6 +2,7 @@
 #define QIMFIGUREWIDGET_H
 #include "QImWidget.h"
 #include <initializer_list>
+#include <QSizeF>
 #include <QWidget>
 #include "QImPlotTheme.h"
 #include <vector>
@@ -45,6 +46,9 @@ public:
     std::vector< float > subplotGridRowRatios() const;
     std::vector< float > subplotGridColumnRatios() const;
     QImSubplotsNode* subplotNode() const;
+    // 设置单个 subplot 的最小可视尺寸；网格总尺寸超出控件时自动出现滚动条
+    QSizeF minimumPlotSize() const;
+    void setMinimumPlotSize(const QSizeF& size);
     // ===========================
     //  plot
     // ===========================

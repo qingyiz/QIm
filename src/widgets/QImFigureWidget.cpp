@@ -102,6 +102,23 @@ QImSubplotsNode* QImFigureWidget::subplotNode() const
     return d_ptr->m_subplotNode.data();
 }
 
+QSizeF QImFigureWidget::minimumPlotSize() const
+{
+    QIM_DC(d);
+    if (d->m_subplotNode) {
+        return d->m_subplotNode->minimumPlotSize();
+    }
+    return QSizeF();
+}
+
+void QImFigureWidget::setMinimumPlotSize(const QSizeF& size)
+{
+    QIM_D(d);
+    if (d->m_subplotNode) {
+        d->m_subplotNode->setMinimumPlotSize(size);
+    }
+}
+
 /**
  * @brief 创建一个绘图，这个绘图会作为subplot的子节点
  *
