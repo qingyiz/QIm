@@ -11,6 +11,7 @@
 #include "QImPlotAxisInfo.h"
 #include "QImTrackedValue.hpp"
 #include "QtImGuiUtils.h"
+#include "QImPlotAnnotationItemNode.h"
 #include "QImPlotItemNode.h"
 #include "QImPlotLineItemNode.h"
 #include "QImPlotLegendNode.h"
@@ -644,6 +645,11 @@ void QImPlotNode::addLine(QImPlotLineItemNode* lineItem)
 }
 
 void QImPlotNode::addMarkerAnnotations(QImPlotMarkerAnnotationItemNode* item)
+{
+    addPlotItem(item);
+}
+
+void QImPlotNode::addAnnotations(QImPlotAnnotationItemNode* item)
 {
     addPlotItem(item);
 }
