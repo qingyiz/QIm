@@ -15,6 +15,7 @@
 #include "QImPlotItemNode.h"
 #include "QImPlotLineItemNode.h"
 #include "QImPlotLegendNode.h"
+#include "QImPlotStateOverviewItemNode.h"
 namespace QIM
 {
 
@@ -650,6 +651,11 @@ void QImPlotNode::addMarkerAnnotations(QImPlotMarkerAnnotationItemNode* item)
 }
 
 void QImPlotNode::addAnnotations(QImPlotAnnotationItemNode* item)
+{
+    addPlotItem(item);
+}
+
+void QImPlotNode::addStateOverview(QImPlotStateOverviewItemNode* item)
 {
     addPlotItem(item);
 }

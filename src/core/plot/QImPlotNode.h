@@ -8,6 +8,7 @@
 #include "QImPlotAnnotationItemNode.h"
 #include "QImPlotLineItemNode.h"
 #include "QImPlotMarkerAnnotationItemNode.h"
+#include "QImPlotStateOverviewItemNode.h"
 namespace QIM
 {
 class QImPlotAxisInfo;
@@ -16,6 +17,7 @@ class QImPlotAnnotationItemNode;
 class QImPlotLegendNode;
 class QImPlotLineItemNode;
 class QImPlotMarkerAnnotationItemNode;
+class QImPlotStateOverviewItemNode;
 /**
  * @brief ImPlot 绘图区域节点
  *
@@ -139,6 +141,8 @@ public:
     QImPlotMarkerAnnotationItemNode* addMarkerAnnotations(const Container& points, const QString& label);
     void addAnnotations(QImPlotAnnotationItemNode* item);
     QImPlotAnnotationItemNode* addAnnotations(const QString& label = QStringLiteral("annotations"));
+    void addStateOverview(QImPlotStateOverviewItemNode* item);
+    QImPlotStateOverviewItemNode* addStateOverview(const QString& label = QStringLiteral("state overview"));
     //===============================================================
     // Legend
     //===============================================================
@@ -200,6 +204,14 @@ inline QImPlotMarkerAnnotationItemNode* QImPlotNode::addMarkerAnnotations(const 
 inline QImPlotAnnotationItemNode* QImPlotNode::addAnnotations(const QString& label)
 {
     QImPlotAnnotationItemNode* item = new QImPlotAnnotationItemNode();
+    item->setLabel(label);
+    addPlotItem(item);
+    return item;
+}
+
+inline QImPlotStateOverviewItemNode* QImPlotNode::addStateOverview(const QString& label)
+{
+    QImPlotStateOverviewItemNode* item = new QImPlotStateOverviewItemNode();
     item->setLabel(label);
     addPlotItem(item);
     return item;
