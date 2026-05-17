@@ -4,7 +4,6 @@
 #include "QImAbstractNode.h"
 #include "QImTrackedValue.hpp"
 #include "implot.h"
-#include "implot_internal.h"
 #include "implot3d.h"
 #include "imgui.h"
 #include "plot/QImSubplotsNode.h"
@@ -156,27 +155,64 @@ private:
 
             QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(node);
             if (!plot3D) {
-                ImPlot::SubplotNextCell();
+                advanceEmptyCell();
                 continue;
             }
 
-            const ImPlotSubplot* subplot = GImPlot ? GImPlot->CurrentSubplot : nullptr;
-            const ImVec2 cellSize = subplot ? subplot->CellSize : ImGui::GetContentRegionAvail();
-            ImGui::PushID(plot3D);
-            ImGui::BeginChild(
-                "##Mixed3DSubplotCell",
-                cellSize,
-                false,
-                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
-            plot3D->setAutoSize(false);
-            plot3D->setSize(QSizeF(cellSize.x, cellSize.y));
-            plot3D->render();
-            ImGui::EndChild();
-            ImGui::PopID();
-            ImPlot::SubplotNextCell();
+            renderPlot3DCell(plot3D);
         }
 
         ImPlot::EndSubplots();
+    }
+
+    void advanceEmptyCell()
+    {
+        static constexpr ImPlotFlags placeholderFlags =
+            ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs;
+        if (ImPlot::BeginPlot("##FigureMixedEmptyCell", ImVec2(-1.0f, -1.0f), placeholderFlags)) {
+            ImPlot::SetupAxes(nullptr,
+                              nullptr,
+                              ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus,
+                              ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus);
+            ImPlot::EndPlot();
+        }
+    }
+
+    void renderPlot3DCell(QImPlot3DNode* plot3D)
+    {
+        if (!plot3D) {
+            advanceEmptyCell();
+            return;
+        }
+
+        static constexpr ImPlotFlags placeholderFlags =
+            ImPlotFlags_CanvasOnly | ImPlotFlags_NoFrame | ImPlotFlags_NoInputs;
+        if (!ImPlot::BeginPlot("##FigureMixed3DCell", ImVec2(-1.0f, -1.0f), placeholderFlags)) {
+            return;
+        }
+        ImPlot::SetupAxes(nullptr,
+                          nullptr,
+                          ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus,
+                          ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus);
+
+        const ImVec2 cellPos = ImPlot::GetPlotPos();
+        const ImVec2 cellSize = ImPlot::GetPlotSize();
+        ImPlot::EndPlot();
+
+        const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(cellPos);
+        ImGui::PushID(plot3D);
+        ImGui::BeginChild(
+            "##Mixed3DSubplotCell",
+            cellSize,
+            false,
+            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
+        plot3D->setAutoSize(false);
+        plot3D->setSize(QSizeF(cellSize.x, cellSize.y));
+        plot3D->render();
+        ImGui::EndChild();
+        ImGui::PopID();
+        ImGui::SetCursorScreenPos(restoreCursor);
     }
 
     QPointer< QImSubplotsNode > m_subplot2D;
