@@ -509,7 +509,7 @@ private:
     {
         ImVec2 contentSize = visibleSize;
         const QSizeF minimumPlotSize = m_subplot2D ? m_subplot2D->minimumPlotSize() : QSizeF();
-        const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+        const ImVec2 spacing(0.0f, 0.0f);
         if (minimumPlotSize.width() > 0.0) {
             const float minWidth = static_cast< float >(minimumPlotSize.width()) * static_cast< float >(columns()) +
                                    spacing.x * static_cast< float >(std::max(0, columns() - 1));
@@ -616,7 +616,7 @@ private:
         const ImVec2 contentSize = resolveContentSize(visibleSize);
         const bool scrollable = beginScrollableArea(visibleSize, contentSize);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
-        const ImVec2 spacing = ImGui::GetStyle().ItemSpacing;
+        const ImVec2 spacing(0.0f, 0.0f);
         ImGui::Dummy(contentSize);
 
         for (const ResolvedPlotLayout& layout : layouts) {
