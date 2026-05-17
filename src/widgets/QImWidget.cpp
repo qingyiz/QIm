@@ -19,6 +19,58 @@
 #include "QImAbstractNode.h"
 namespace QIM
 {
+class QImWidgetRenderScheduler
+{
+public:
+    void requestFollowupFrames(int count)
+    {
+        m_pendingFollowupFrames = std::max(m_pendingFollowupFrames, count);
+    }
+
+    bool consumeFollowupFrame()
+    {
+        if (m_pendingFollowupFrames <= 0) {
+            return false;
+        }
+        --m_pendingFollowupFrames;
+        return true;
+    }
+
+    bool shouldRequestAfterEvent(QEvent::Type type, bool demandMode)
+    {
+        if (!demandMode) {
+            return false;
+        }
+
+        switch (type) {
+        case QEvent::MouseMove:
+        case QEvent::Enter:
+        case QEvent::Wheel:
+        case QEvent::KeyPress:
+        case QEvent::KeyRelease:
+        case QEvent::FocusIn:
+        case QEvent::FocusOut:
+        case QEvent::HoverMove:
+        case QEvent::Resize:
+        case QEvent::Leave:
+        case QEvent::FontChange:
+        case QEvent::StyleChange:
+            return true;
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::ContextMenu:
+            requestFollowupFrames(2);
+            return true;
+        default:
+            return false;
+        }
+    }
+
+private:
+    int m_pendingFollowupFrames { 0 };
+};
+
 class QImWidget::PrivateData
 {
     QIM_DECLARE_PUBLIC(QImWidget)
@@ -38,8 +90,6 @@ public:
     bool shouldUseHighFPS() const;
     //
     void adaptiveTimer();
-    void requestFollowupFrames(int count);
-    bool consumeFollowupFrame();
 
 public:
     //----------------------------------------------------
@@ -53,7 +103,7 @@ public:
     int minRenderInterval { 16 };  ///< 最小渲染间隔(ms)，对应约60FPS
     int lowInterval { 55 };        ///< 高帧率，对应 18FPS 用于持续渲染模式
     int hightInterval { 1000 };    ///< 低帧率，对应 1FPS 用于自适应渲染模式
-    int pendingFollowupFrames { 0 };
+    QImWidgetRenderScheduler renderScheduler;
     //----------------------------------------------------
     // font about
     //----------------------------------------------------
@@ -284,20 +334,6 @@ void QImWidget::PrivateData::adaptiveTimer()
 #endif
         }
     }
-}
-
-void QImWidget::PrivateData::requestFollowupFrames(int count)
-{
-    pendingFollowupFrames = std::max(pendingFollowupFrames, count);
-}
-
-bool QImWidget::PrivateData::consumeFollowupFrame()
-{
-    if (pendingFollowupFrames <= 0) {
-        return false;
-    }
-    --pendingFollowupFrames;
-    return true;
 }
 
 #ifdef QIM_ENABLE_DEBUG_PRINT_FPS
@@ -681,7 +717,7 @@ void QImWidget::paintGL()
         ImGui::Render();
         QtImGui::render(d->imguiRenderRef);
     }
-    if (d->needDemandUpdate() && d->consumeFollowupFrame()) {
+    if (d->needDemandUpdate() && d->renderScheduler.consumeFollowupFrame()) {
         update();
     }
     // 重置计时
@@ -714,43 +750,15 @@ void QImWidget::changeEvent(QEvent* e)
 
 bool QImWidget::event(QEvent* e)
 {
-    bool requestRenderAfterEvent = false;
+    // 这些事件触发渲染。先让Qt/QtImGui处理事件，再请求绘制，避免按需模式下使用旧IO状态渲染。
+    const bool requestRenderAfterEvent =
+        d_ptr->renderScheduler.shouldRequestAfterEvent(e->type(), d_ptr->needDemandUpdate());
     bool requestRenderAlways = false;
 
-    // 这些事件触发渲染。先让Qt/QtImGui处理事件，再请求绘制，避免按需模式下使用旧IO状态渲染。
     switch (e->type()) {
-    case QEvent::MouseMove:
-    case QEvent::Enter:  // 鼠标进入窗口
-    case QEvent::Wheel:
-    case QEvent::KeyPress:
-    case QEvent::KeyRelease:
-    case QEvent::FocusIn:
-    case QEvent::FocusOut:
-    case QEvent::HoverMove:
-    case QEvent::Resize:
-    case QEvent::Leave:
-        if (d_ptr->needDemandUpdate()) {
-            requestRenderAfterEvent = true;
-        }
-        break;
-    case QEvent::MouseButtonPress:
-    case QEvent::MouseButtonRelease:
-    case QEvent::MouseButtonDblClick:
-    case QEvent::ContextMenu:
-        if (d_ptr->needDemandUpdate()) {
-            requestRenderAfterEvent = true;
-            d_ptr->requestFollowupFrames(2);
-        }
-        break;
     case QEvent::WindowActivate:
     case QEvent::WindowDeactivate:
         requestRenderAlways = true;
-        break;
-    case QEvent::FontChange:
-    case QEvent::StyleChange:
-        if (d_ptr->needDemandUpdate()) {
-            requestRenderAfterEvent = true;
-        }
         break;
     case QEvent::Hide:
         d_ptr->timer->stop();  // 隐藏时停止渲染
