@@ -386,6 +386,11 @@ QImPlotNode* QImFigureWidget::subplot(int rows, int cols, const std::vector< int
     if (!d->m_subplotNode || rows <= 0 || cols <= 0) {
         return nullptr;
     }
+    if (plot3DCount() > 0) {
+        qWarning() << "QImFigureWidget::subplot does not support MATLAB-style 2D manual layout while 3D plots exist. "
+                      "Use setSubplotGrid + createPlotNode/createPlot3DNode for mixed 2D/3D figures.";
+        return nullptr;
+    }
 
     const bool layoutChanged = !d->m_usingMatlabLayout || d->m_matlabLayoutRows != rows || d->m_matlabLayoutCols != cols;
     if (layoutChanged) {
@@ -474,6 +479,11 @@ QImSubplots3DNode* QImFigureWidget::subplot3DNode() const
 QImPlot3DNode* QImFigureWidget::createPlot3DNode()
 {
     if (!d_ptr->m_subplot3DNode || !d_ptr->m_subplotNode || plotCount() + plot3DCount() >= d_ptr->m_subplotNode->gridCount()) {
+        return nullptr;
+    }
+    if (d_ptr->m_subplotNode->hasManualPlotLayouts()) {
+        qWarning() << "QImFigureWidget::createPlot3DNode does not support existing MATLAB-style 2D manual layouts. "
+                      "Use setSubplotGrid + createPlotNode/createPlot3DNode for mixed 2D/3D figures.";
         return nullptr;
     }
     QImPlot3DNode* plot = d_ptr->m_subplot3DNode ? d_ptr->m_subplot3DNode->createPlotNode() : nullptr;
