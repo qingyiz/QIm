@@ -73,9 +73,13 @@ void QImAbstractNode::insertChildNode(int index, QImAbstractNode* child)
     }
 
     // 避免重复添加
-    if (m_children.contains(child)) {
+    const int oldIndex = m_children.indexOf(child);
+    if (oldIndex >= 0) {
         // 如果已在列表中，先移除再插入到新位置
-        m_children.removeOne(child);
+        m_children.removeAt(oldIndex);
+        if (oldIndex < index) {
+            --index;
+        }
     } else {
         // 处理旧父节点
         if (child->m_parent && child->m_parent != this) {
@@ -85,6 +89,9 @@ void QImAbstractNode::insertChildNode(int index, QImAbstractNode* child)
         child->m_parent = this;
     }
 
+    if (index > m_children.size()) {
+        index = m_children.size();
+    }
     m_children.insert(index, child);
     updateZOrderedList();
     Q_EMIT childNodeAdded(child);
