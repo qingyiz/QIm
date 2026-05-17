@@ -57,6 +57,9 @@ public:
     // ===========================
     // 创建一个绘图，这个绘图会作为subplot的子节点，如果当前subplot的绘图已经和subplot的管理数量一致，此函数返回nullptr
     QImPlotNode* createPlotNode();
+    // 创建一个占用指定 subplot 网格的 2D 图；索引从1开始，indices必须形成矩形区域
+    QImPlotNode* createPlotNode(const std::vector< int >& subplotIndices);
+    QImPlotNode* createPlotNode(std::initializer_list< int > subplotIndices);
     // MATLAB风格subplot接口：索引从1开始，支持跨格矩形区域
     QImPlotNode* subplot(int rows, int cols, int index);
     QImPlotNode* subplot(int rows, int cols, const std::vector< int >& indices);
@@ -79,6 +82,9 @@ public:
     // ===========================
     QImSubplots3DNode* subplot3DNode() const;
     QImPlot3DNode* createPlot3DNode();
+    // 创建一个占用指定 subplot 网格的 3D 图；索引从1开始，indices必须形成矩形区域
+    QImPlot3DNode* createPlot3DNode(const std::vector< int >& subplotIndices);
+    QImPlot3DNode* createPlot3DNode(std::initializer_list< int > subplotIndices);
     QList< QImPlot3DNode* > plot3DNodes() const;
     int plot3DCount() const;
 Q_SIGNALS:

@@ -37,57 +37,11 @@ int main(int argc, char* argv[])
     figure->setRenderMode(QIM::QImWidget::RenderOnDemand);
 
     // 2D 和 3D 共用同一个 QImFigureWidget 和同一份 subplot 网格配置。
+    // 这里演示 3D 图跨越左侧 {1, 3} 两个网格，两个 2D 图分别占用 {2} 和 {4}。
     figure->setSubplotGrid(2, 2);
     window.setCentralWidget(figure);
 
-    if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
-        plot->setTitle("2D Sine");
-        plot->x1Axis()->setLabel("x");
-        plot->y1Axis()->setLabel("sin(x)");
-        plot->setLegendEnabled(true);
-
-        std::vector< double > xs;
-        std::vector< double > ys;
-        xs.reserve(360);
-        ys.reserve(360);
-        for (int i = 0; i < 360; ++i) {
-            const double x = static_cast< double >(i) * 2.0 * M_PI / 359.0;
-            xs.push_back(x);
-            ys.push_back(std::sin(x));
-        }
-
-        auto* line = new QIM::QImPlotLineItemNode(plot);
-        line->setLabel("sin(x)");
-        line->setData(xs, ys);
-        line->setColor(QColor(0, 114, 189));
-        line->setLineWidth(2.0f);
-    }
-
-    if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
-        plot->setTitle("2D Bars + Scatter");
-        plot->x1Axis()->setLabel("index");
-        plot->y1Axis()->setLabel("value");
-        plot->setLegendEnabled(true);
-
-        std::vector< double > x { 1.0, 2.0, 3.0, 4.0, 5.0 };
-        std::vector< double > barsY { 3.0, 5.0, 4.0, 6.0, 5.5 };
-        auto* bars = new QIM::QImPlotBarsItemNode(plot);
-        bars->setLabel("bars");
-        bars->setData(x, barsY);
-        bars->setBarWidth(0.45);
-        bars->setColor(QColor(80, 170, 90));
-
-        std::vector< double > scatterY { 3.4, 4.7, 4.5, 5.7, 6.1 };
-        auto* scatter = new QIM::QImPlotScatterItemNode(plot);
-        scatter->setLabel("samples");
-        scatter->setData(x, scatterY);
-        scatter->setMarkerSize(5.0f);
-        scatter->setMarkerShape(ImPlotMarker_Circle);
-        scatter->setMarkerFill(true);
-        scatter->setColor(QColor(217, 83, 25));
-    }
-
-    if (QIM::QImPlot3DNode* plot = figure->createPlot3DNode()) {
+    if (QIM::QImPlot3DNode* plot = figure->createPlot3DNode({ 1, 3 })) {
         plot->setTitle("3D Helix");
         plot->setXAxisLabel("X");
         plot->setYAxisLabel("Y");
@@ -115,33 +69,51 @@ int main(int argc, char* argv[])
         line->setLineWidth(2.0f);
     }
 
-    if (QIM::QImPlot3DNode* plot = figure->createPlot3DNode()) {
-        plot->setTitle("3D Scatter");
-        plot->setXAxisLabel("X");
-        plot->setYAxisLabel("Y");
-        plot->setZAxisLabel("Z");
+    if (QIM::QImPlotNode* plot = figure->createPlotNode({ 2 })) {
+        plot->setTitle("2D Sine");
+        plot->x1Axis()->setLabel("x");
+        plot->y1Axis()->setLabel("sin(x)");
         plot->setLegendEnabled(true);
 
         std::vector< double > xs;
         std::vector< double > ys;
-        std::vector< double > zs;
-        xs.reserve(80);
-        ys.reserve(80);
-        zs.reserve(80);
-        for (int i = 0; i < 80; ++i) {
-            const double t = static_cast< double >(i) * 0.22;
-            xs.push_back(std::cos(t) * (0.25 + 0.01 * i));
-            ys.push_back(std::sin(t) * (0.25 + 0.01 * i));
-            zs.push_back(std::sin(t * 0.7));
+        xs.reserve(360);
+        ys.reserve(360);
+        for (int i = 0; i < 360; ++i) {
+            const double x = static_cast< double >(i) * 2.0 * M_PI / 359.0;
+            xs.push_back(x);
+            ys.push_back(std::sin(x));
         }
 
-        auto* scatter = new QIM::QImPlot3DScatterItemNode(plot);
-        scatter->setLabel("points");
-        scatter->setData(xs, ys, zs);
-        scatter->setMarkerShape(ImPlot3DMarker_Circle);
-        scatter->setMarkerSize(4.0f);
-        scatter->setFillColor(QColor(217, 83, 25));
-        scatter->setOutlineColor(QColor(120, 45, 10));
+        auto* line = new QIM::QImPlotLineItemNode(plot);
+        line->setLabel("sin(x)");
+        line->setData(xs, ys);
+        line->setColor(QColor(0, 114, 189));
+        line->setLineWidth(2.0f);
+    }
+
+    if (QIM::QImPlotNode* plot = figure->createPlotNode({ 4 })) {
+        plot->setTitle("2D Bars + Scatter");
+        plot->x1Axis()->setLabel("index");
+        plot->y1Axis()->setLabel("value");
+        plot->setLegendEnabled(true);
+
+        std::vector< double > x { 1.0, 2.0, 3.0, 4.0, 5.0 };
+        std::vector< double > barsY { 3.0, 5.0, 4.0, 6.0, 5.5 };
+        auto* bars = new QIM::QImPlotBarsItemNode(plot);
+        bars->setLabel("bars");
+        bars->setData(x, barsY);
+        bars->setBarWidth(0.45);
+        bars->setColor(QColor(80, 170, 90));
+
+        std::vector< double > scatterY { 3.4, 4.7, 4.5, 5.7, 6.1 };
+        auto* scatter = new QIM::QImPlotScatterItemNode(plot);
+        scatter->setLabel("samples");
+        scatter->setData(x, scatterY);
+        scatter->setMarkerSize(5.0f);
+        scatter->setMarkerShape(ImPlotMarker_Circle);
+        scatter->setMarkerFill(true);
+        scatter->setColor(QColor(217, 83, 25));
     }
 
     window.resize(1280, 900);
