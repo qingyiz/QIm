@@ -16,13 +16,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QSplitter" name="splitter">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <widget class="QIM::QImFigureWidget" name="figureWidget1" native="true"/>
-      <widget class="QWidget" name="widget_2" native="true"/>
-     </widget>
+     <widget class="QIM::QImFigureWidget" name="figureWidget1" native="true"/>
     </item>
    </layout>
   </widget>

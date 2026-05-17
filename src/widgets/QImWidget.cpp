@@ -38,6 +38,8 @@ public:
     bool shouldUseHighFPS() const;
     //
     void adaptiveTimer();
+    void requestFollowupFrames(int count);
+    bool consumeFollowupFrame();
 
 public:
     //----------------------------------------------------
@@ -51,6 +53,7 @@ public:
     int minRenderInterval { 16 };  ///< 最小渲染间隔(ms)，对应约60FPS
     int lowInterval { 55 };        ///< 高帧率，对应 18FPS 用于持续渲染模式
     int hightInterval { 1000 };    ///< 低帧率，对应 1FPS 用于自适应渲染模式
+    int pendingFollowupFrames { 0 };
     //----------------------------------------------------
     // font about
     //----------------------------------------------------
@@ -281,6 +284,20 @@ void QImWidget::PrivateData::adaptiveTimer()
 #endif
         }
     }
+}
+
+void QImWidget::PrivateData::requestFollowupFrames(int count)
+{
+    pendingFollowupFrames = std::max(pendingFollowupFrames, count);
+}
+
+bool QImWidget::PrivateData::consumeFollowupFrame()
+{
+    if (pendingFollowupFrames <= 0) {
+        return false;
+    }
+    --pendingFollowupFrames;
+    return true;
 }
 
 #ifdef QIM_ENABLE_DEBUG_PRINT_FPS
@@ -664,6 +681,9 @@ void QImWidget::paintGL()
         ImGui::Render();
         QtImGui::render(d->imguiRenderRef);
     }
+    if (d->needDemandUpdate() && d->consumeFollowupFrame()) {
+        update();
+    }
     // 重置计时
     d->paintElapsed.restart();
 }
@@ -694,12 +714,12 @@ void QImWidget::changeEvent(QEvent* e)
 
 bool QImWidget::event(QEvent* e)
 {
-    // 这些事件触发渲染
+    bool requestRenderAfterEvent = false;
+    bool requestRenderAlways = false;
+
+    // 这些事件触发渲染。先让Qt/QtImGui处理事件，再请求绘制，避免按需模式下使用旧IO状态渲染。
     switch (e->type()) {
     case QEvent::MouseMove:
-    case QEvent::MouseButtonPress:
-    case QEvent::MouseButtonRelease:
-    case QEvent::MouseButtonDblClick:
     case QEvent::Enter:  // 鼠标进入窗口
     case QEvent::Wheel:
     case QEvent::KeyPress:
@@ -710,17 +730,26 @@ bool QImWidget::event(QEvent* e)
     case QEvent::Resize:
     case QEvent::Leave:
         if (d_ptr->needDemandUpdate()) {
-            requestRender();
+            requestRenderAfterEvent = true;
+        }
+        break;
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseButtonRelease:
+    case QEvent::MouseButtonDblClick:
+    case QEvent::ContextMenu:
+        if (d_ptr->needDemandUpdate()) {
+            requestRenderAfterEvent = true;
+            d_ptr->requestFollowupFrames(2);
         }
         break;
     case QEvent::WindowActivate:
     case QEvent::WindowDeactivate:
-        requestRender();
+        requestRenderAlways = true;
         break;
     case QEvent::FontChange:
     case QEvent::StyleChange:
         if (d_ptr->needDemandUpdate()) {
-            requestRender();
+            requestRenderAfterEvent = true;
         }
         break;
     case QEvent::Hide:
@@ -736,7 +765,11 @@ bool QImWidget::event(QEvent* e)
         break;
     }
 
-    return QOpenGLWidget::event(e);
+    const bool handled = QOpenGLWidget::event(e);
+    if (requestRenderAlways || requestRenderAfterEvent) {
+        requestRender();
+    }
+    return handled;
 }
 
 /**

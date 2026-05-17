@@ -10,12 +10,15 @@ namespace QIM
 {
 class QImSubplotsNode;
 class QImPlotNode;
+class QImSubplots3DNode;
+class QImPlot3DNode;
 /**
  * @brief Figure Widget for plot
  *
- * QImFigureWidget内部会创建一个QImSubplotsNode
+ * QImFigureWidget内部会创建二维QImSubplotsNode和三维QImSubplots3DNode
  *
- * 绘图的节点都会作为QImSubplotsNode的子节点，默认QImSubplotsNode会有1行1列的布局
+ * 绘图的节点会作为对应subplot节点的子节点，默认subplot会有1行1列的布局。
+ * 当二维和三维图同时存在时，它们会在同一个QImFigureWidget窗口内按统一subplot网格混合显示。
  *
  * 你也可以直接调用@ref addRenderNode 把节点挂在顶层窗口下面，这样你可以创建任意渲染节点在subplot上面
  */
@@ -71,6 +74,13 @@ public:
     bool takePlotNode(QImPlotNode* plot);
     // 移除绘图，plot会被删除
     void removePlotNode(QImPlotNode* plot);
+    // ===========================
+    //  3D subplot / plot
+    // ===========================
+    QImSubplots3DNode* subplot3DNode() const;
+    QImPlot3DNode* createPlot3DNode();
+    QList< QImPlot3DNode* > plot3DNodes() const;
+    int plot3DCount() const;
 Q_SIGNALS:
     /**
      * @brief QImPlotNode的添加或删除的信号，此信号等同绑定subplotNode的childNodeAdded/childNodeRemoved
@@ -78,6 +88,7 @@ Q_SIGNALS:
      * @param attach
      */
     void plotNodeAttached(QIM::QImPlotNode* plot, bool attach);
+    void plot3DNodeAttached(QIM::QImPlot3DNode* plot, bool attach);
 
 protected:
     void initializeGL() override;
@@ -85,6 +96,8 @@ protected:
 private Q_SLOTS:
     void onSubplotChildNodeRemoved(QIM::QImAbstractNode* c);
     void onSubplotChildNodeAdded(QIM::QImAbstractNode* c);
+    void onSubplot3DChildNodeRemoved(QIM::QImAbstractNode* c);
+    void onSubplot3DChildNodeAdded(QIM::QImAbstractNode* c);
 };
 }
 #endif  // QIMFIGUREWIDGET_H

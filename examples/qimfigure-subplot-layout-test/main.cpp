@@ -22,7 +22,6 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include "QImFigure3DWidget.h"
 #include "QImFigureWidget.h"
 #include "plot/QImPlot3DLineItemNode.h"
 #include "plot/QImPlot3DNode.h"
@@ -492,14 +491,14 @@ private:
             m_figure3D = nullptr;
         }
 
-        m_figure3D = new QIM::QImFigure3DWidget(m_threeDPage);
+        m_figure3D = new QIM::QImFigureWidget(m_threeDPage);
         m_figure3D->setRenderMode(QIM::QImWidget::RenderOnDemand);
         m_figure3D->setSubplotGrid(m_threeDRows, m_threeDCols);
         m_threeDPageLayout->addWidget(m_figure3D, 1);
 
         const int maxSlot = m_threeDPlotSpecs.isEmpty() ? 0 : m_threeDPlotSpecs.lastKey();
         for (int slotIndex = 1; slotIndex <= maxSlot; ++slotIndex) {
-            QIM::QImPlot3DNode* plot = m_figure3D->createPlotNode();
+            QIM::QImPlot3DNode* plot = m_figure3D->createPlot3DNode();
             if (!plot) {
                 break;
             }
@@ -541,7 +540,7 @@ private:
 
         if (is3D) {
             m_tipLabel->setText(
-                "3D mode creates QImFigure3DWidget axes.\n"
+                "3D mode creates QImFigureWidget 3D axes.\n"
                 "Use rows, columns and a single slot index to place a 3D coordinate system.\n"
                 "Current 3D example intentionally follows the existing API: only single-slot creation is supported here.\n"
                 "When you switch to a different rows x cols grid, previous 3D slots are cleared and rebuilt.");
@@ -677,7 +676,7 @@ private:
     void refreshSummary(const QString& action)
     {
         if (currentMode() == Figure3D) {
-            const int renderedAxes = m_figure3D ? m_figure3D->plotCount() : 0;
+            const int renderedAxes = m_figure3D ? m_figure3D->plot3DCount() : 0;
             m_summaryLabel->setText(
                 QString("%1\nCurrent figure: 3D axes\nAssigned slots: %2\nRendered axes: %3\nCurrent grid: %4 x %5")
                     .arg(action)
@@ -714,7 +713,7 @@ private:
     QIM::QImFigureWidget* m_figure2D { nullptr };
     QWidget* m_threeDPage { nullptr };
     QVBoxLayout* m_threeDPageLayout { nullptr };
-    QIM::QImFigure3DWidget* m_figure3D { nullptr };
+    QIM::QImFigureWidget* m_figure3D { nullptr };
     QMap< int, ThreeDPlotSpec > m_threeDPlotSpecs;
     int m_threeDRows { 1 };
     int m_threeDCols { 1 };
