@@ -750,9 +750,14 @@ void QImWidget::changeEvent(QEvent* e)
 
 bool QImWidget::event(QEvent* e)
 {
+    if (!d_ptr) {
+        return QOpenGLWidget::event(e);
+    }
+
     // 这些事件触发渲染。先让Qt/QtImGui处理事件，再请求绘制，避免按需模式下使用旧IO状态渲染。
+    PrivateData* d = d_ptr.get();
     const bool requestRenderAfterEvent =
-        d_ptr->renderScheduler.shouldRequestAfterEvent(e->type(), d_ptr->needDemandUpdate());
+        d->renderScheduler.shouldRequestAfterEvent(e->type(), d->needDemandUpdate());
     bool requestRenderAlways = false;
 
     switch (e->type()) {
@@ -761,12 +766,12 @@ bool QImWidget::event(QEvent* e)
         requestRenderAlways = true;
         break;
     case QEvent::Hide:
-        d_ptr->timer->stop();  // 隐藏时停止渲染
+        d->timer->stop();  // 隐藏时停止渲染
         break;
 
     case QEvent::Show:
-        if (d_ptr->needStartContinuousTimer()) {
-            d_ptr->timer->start();  // 非OnDemand模式恢复渲染
+        if (d->needStartContinuousTimer()) {
+            d->timer->start();  // 非OnDemand模式恢复渲染
         }
         break;
     default:
