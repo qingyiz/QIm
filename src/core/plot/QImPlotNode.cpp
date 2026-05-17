@@ -736,7 +736,7 @@ bool QImPlotNode::beginDraw()
     d->plot = ImPlot::GetCurrentPlot();
     // 构建坐标轴
     d->renderAllAxis();
-    ImPlot::SetupLegend(ImPlotLocation_East);
+    d->legendNode->apply();
     return true;
 }
 

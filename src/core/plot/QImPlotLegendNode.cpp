@@ -14,9 +14,9 @@ public:
     PrivateData(QImPlotLegendNode* p);
 
     // 位置相关
-    ImPlotLocation location { ImPlotLocation_NorthEast };
+    ImPlotLocation location { ImPlotLocation_East };
     // ImPlotLegendFlags（存储原始标志位）
-    ImPlotLegendFlags flags { ImPlotLegendFlags_NoMenus };
+    ImPlotLegendFlags flags { ImPlotLegendFlags_None };
 };
 
 QImPlotLegendNode::PrivateData::PrivateData(QImPlotLegendNode* p) : q_ptr(p)
@@ -138,10 +138,15 @@ void QImPlotLegendNode::setLegendFlags(int flags)
 // ----------------------------------------------------
 // 渲染方法
 // ----------------------------------------------------
+void QImPlotLegendNode::apply() const
+{
+    ImPlot::SetupLegend(d_ptr->location, d_ptr->flags);
+}
+
 bool QImPlotLegendNode::beginDraw()
 {
     // 在渲染时应用图例设置
-    ImPlot::SetupLegend(d_ptr->location, d_ptr->flags);
+    apply();
     return false;  // 不需要特别的渲染上下文
 }
 
