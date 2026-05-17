@@ -291,7 +291,7 @@ void QImFigureWidget::setSubplotGrid(int rows, int cols, const std::vector< floa
         d->m_subplotNode->setGrid(rows, cols, rowsRatios, colsRatios);
     }
     if (d->m_subplot3DNode) {
-        d->m_subplot3DNode->setGrid(rows, cols);
+        d->m_subplot3DNode->setGrid(rows, cols, rowsRatios, colsRatios);
     }
 }
 

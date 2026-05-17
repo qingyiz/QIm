@@ -5,6 +5,7 @@
 #include <QPoint>
 #include <QPointF>
 #include <QSizeF>
+#include <vector>
 
 namespace QIM
 {
@@ -33,7 +34,16 @@ public:
     int columns() const;
     void setColumns(int columns);
 
-    void setGrid(int rows, int cols);
+    std::vector< float > rowRatios() const;
+    void setRowRatios(const std::vector< float >& rowRatios);
+
+    std::vector< float > columnRatios() const;
+    void setColumnRatios(const std::vector< float >& columnRatios);
+
+    void setGrid(int rows,
+                 int cols,
+                 const std::vector< float >& rowRatios = std::vector< float >(),
+                 const std::vector< float >& columnRatios = std::vector< float >());
 
     QSizeF size() const;
     void setSize(const QSizeF& size);
@@ -57,12 +67,15 @@ private:
     class CellNode;
     CellNode* createCellNode();
     QPoint cellPosition(int index) const;
-    QSizeF cellSize() const;
+    QSizeF cellSize(int index) const;
+    std::vector< double > trackSizes(int count, double totalPixels, const std::vector< float >& ratios) const;
 
 private:
     QByteArray m_titleUtf8;
     int m_rows { 1 };
     int m_cols { 1 };
+    std::vector< float > m_rowRatios;
+    std::vector< float > m_columnRatios;
     QSizeF m_size { -1.0, -1.0 };
     QPointF m_origin { 0.0, 0.0 };
     QSizeF m_availableSize { 0.0, 0.0 };

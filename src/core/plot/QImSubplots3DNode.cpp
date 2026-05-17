@@ -1,6 +1,8 @@
 #include "QImSubplots3DNode.h"
 #include "QImPlot3DNode.h"
 #include "imgui.h"
+#include <algorithm>
+#include <numeric>
 
 namespace QIM
 {
@@ -19,7 +21,7 @@ public:
             return true;
         }
         const QPoint cellPos = subplots->cellPosition(m_subplotIndex);
-        const QSizeF cellSz  = subplots->cellSize();
+        const QSizeF cellSz  = subplots->cellSize(m_subplotIndex);
         ImGui::SetCursorPos(ImVec2(static_cast< float >(cellPos.x()), static_cast< float >(cellPos.y())));
 
         for (QImAbstractNode* child : childrenNodes()) {
@@ -93,12 +95,40 @@ void QImSubplots3DNode::setColumns(int columns)
     }
 }
 
-void QImSubplots3DNode::setGrid(int rows, int cols)
+std::vector< float > QImSubplots3DNode::rowRatios() const
+{
+    return m_rowRatios;
+}
+
+void QImSubplots3DNode::setRowRatios(const std::vector< float >& rowRatios)
+{
+    if (m_rowRatios != rowRatios) {
+        m_rowRatios = rowRatios;
+        Q_EMIT gridInfoChanged();
+    }
+}
+
+std::vector< float > QImSubplots3DNode::columnRatios() const
+{
+    return m_columnRatios;
+}
+
+void QImSubplots3DNode::setColumnRatios(const std::vector< float >& columnRatios)
+{
+    if (m_columnRatios != columnRatios) {
+        m_columnRatios = columnRatios;
+        Q_EMIT gridInfoChanged();
+    }
+}
+
+void QImSubplots3DNode::setGrid(int rows, int cols, const std::vector< float >& rowRatios, const std::vector< float >& columnRatios)
 {
     {
         QSignalBlocker blocker(static_cast< QObject* >(this));
         setRows(rows);
         setColumns(cols);
+        setRowRatios(rowRatios);
+        setColumnRatios(columnRatios);
     }
     Q_EMIT gridInfoChanged();
 }
@@ -181,19 +211,61 @@ void QImSubplots3DNode::endDraw()
 
 QPoint QImSubplots3DNode::cellPosition(int index) const
 {
-    const QSizeF sz = cellSize();
     const int row   = (m_cols > 0) ? (index / m_cols) : 0;
     const int col   = (m_cols > 0) ? (index % m_cols) : 0;
+    const std::vector< double > columnSizes = trackSizes(m_cols, m_availableSize.width(), m_columnRatios);
+    const std::vector< double > rowSizes = trackSizes(m_rows, m_availableSize.height(), m_rowRatios);
+
+    double xOffset = 0.0;
+    double yOffset = 0.0;
+    for (int c = 0; c < col && c < static_cast< int >(columnSizes.size()); ++c) {
+        xOffset += columnSizes[ c ];
+    }
+    for (int r = 0; r < row && r < static_cast< int >(rowSizes.size()); ++r) {
+        yOffset += rowSizes[ r ];
+    }
+
     return QPoint(
-        static_cast< int >(m_origin.x() + static_cast< double >(col) * sz.width()),
-        static_cast< int >(m_origin.y() + static_cast< double >(row) * sz.height())
+        static_cast< int >(m_origin.x() + xOffset),
+        static_cast< int >(m_origin.y() + yOffset)
     );
 }
 
-QSizeF QImSubplots3DNode::cellSize() const
+QSizeF QImSubplots3DNode::cellSize(int index) const
 {
-    const double width = (m_cols > 0) ? (m_availableSize.width() / static_cast< double >(m_cols )) : m_availableSize.width();
-    const double height = (m_rows > 0) ? (m_availableSize.height() / static_cast< double >(m_rows )) : m_availableSize.height();
+    const int row = (m_cols > 0) ? (index / m_cols) : 0;
+    const int col = (m_cols > 0) ? (index % m_cols) : 0;
+    const std::vector< double > columnSizes = trackSizes(m_cols, m_availableSize.width(), m_columnRatios);
+    const std::vector< double > rowSizes = trackSizes(m_rows, m_availableSize.height(), m_rowRatios);
+    const double width = col >= 0 && col < static_cast< int >(columnSizes.size()) ? columnSizes[ col ] : m_availableSize.width();
+    const double height = row >= 0 && row < static_cast< int >(rowSizes.size()) ? rowSizes[ row ] : m_availableSize.height();
     return QSizeF(width, height);
+}
+
+std::vector< double > QImSubplots3DNode::trackSizes(int count, double totalPixels, const std::vector< float >& ratios) const
+{
+    std::vector< double > sizes;
+    if (count <= 0) {
+        return sizes;
+    }
+
+    sizes.resize(static_cast< std::size_t >(count), 0.0);
+    const bool useRatios = static_cast< int >(ratios.size()) == count;
+    double ratioSum = 0.0;
+    if (useRatios) {
+        for (float ratio : ratios) {
+            ratioSum += std::max(0.0f, ratio);
+        }
+    }
+
+    if (!useRatios || ratioSum <= 0.0) {
+        std::fill(sizes.begin(), sizes.end(), totalPixels / static_cast< double >(count));
+        return sizes;
+    }
+
+    for (int i = 0; i < count; ++i) {
+        sizes[ static_cast< std::size_t >(i) ] = totalPixels * std::max(0.0f, ratios[ static_cast< std::size_t >(i) ]) / ratioSum;
+    }
+    return sizes;
 }
 }  // namespace QIM
