@@ -1,5 +1,6 @@
 #include "QImPlot3DTriangleItemNode.h"
 #include "QtImGuiUtils.h"
+#include "implot3d.h"
 #include <algorithm>
 
 namespace QIM

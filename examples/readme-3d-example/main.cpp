@@ -4,8 +4,6 @@
 #include "plot/QImPlot3DScatterItemNode.h"
 #include "plot/QImPlot3DSurfaceItemNode.h"
 
-#include "implot3d.h"
-
 #include <QApplication>
 #include <QMainWindow>
 #include <QOpenGLContext>
@@ -87,7 +85,7 @@ int main(int argc, char* argv[])
         surface->setLabel("surface");
         surface->setData(xs, ys, zs, rows, cols);
         surface->setColormapEnabled(true);
-        surface->setColormap(ImPlot3DColormap_Viridis);
+        surface->setColormap(QIM::QImPlot3DColormap_Viridis);
     }
 
     if (QIM::QImPlot3DNode* plot = figure3D->createPlot3DNode()) {
@@ -111,7 +109,7 @@ int main(int argc, char* argv[])
         wireframe->setLabel("wireframe");
         wireframe->setData(xs, ys, zs, rows, cols);
         wireframe->setColormapEnabled(true);
-        wireframe->setColormap(ImPlot3DColormap_Viridis);
+        wireframe->setColormap(QIM::QImPlot3DColormap_Viridis);
         wireframe->setFillVisible(false);
         wireframe->setMarkersVisible(false);
         wireframe->setLineWidth(1.2f);

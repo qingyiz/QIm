@@ -2,7 +2,6 @@
 #define QIMPLOT3DTRIANGLEITEMNODE_H
 
 #include "QImPlot3DItemNode.h"
-#include "implot3d.h"
 #include <QColor>
 #include <vector>
 
@@ -116,7 +115,7 @@ private:
     std::vector< double > m_yData;
     std::vector< double > m_zData;
     int m_triangleFlags { 0 };
-    int m_markerShape { ImPlot3DMarker_None };
+    int m_markerShape { QImPlot3DMarker_None };
     float m_markerSize { 4.0f };
     float m_markerWeight { 1.0f };
     QColor m_fillColor;

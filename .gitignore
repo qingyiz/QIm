@@ -20,6 +20,7 @@ tmp
 ~
 CMakeLists.txt.user
 out
+install/
 
 #翻译文件暂时不追踪
 *.qm
@@ -108,4 +109,3 @@ __pycache__
 # --------
 *.dll
 *.exe
-

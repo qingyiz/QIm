@@ -2,7 +2,6 @@
 #define QIMPLOT3DSURFACEITEMNODE_H
 
 #include "QImPlot3DItemNode.h"
-#include "implot3d.h"
 #include <QColor>
 #include <vector>
 
@@ -139,7 +138,7 @@ private:
     int m_xCount { 0 };
     int m_yCount { 0 };
     int m_surfaceFlags { 0 };
-    int m_markerShape { ImPlot3DMarker_None };
+    int m_markerShape { QImPlot3DMarker_None };
     float m_markerSize { 4.0f };
     float m_markerWeight { 1.0f };
     QColor m_fillColor;
@@ -148,7 +147,7 @@ private:
     QColor m_markerOutlineColor;
     float m_lineWidth { 1.0f };
     bool m_colormapEnabled { false };
-    int m_colormap { ImPlot3DColormap_Viridis };
+    int m_colormap { QImPlot3DColormap_Viridis };
 };
 }  // namespace QIM
 

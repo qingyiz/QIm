@@ -251,7 +251,7 @@ void ensure3DSurfacePlot(QIM::QImPlot3DNode* plot, const QString& title, const Q
     surface->setLabel(title);
     surface->setData(xs, ys, zs, xCount, yCount);
     surface->setColormapEnabled(true);
-    surface->setColormap(ImPlot3DColormap_Viridis);
+    surface->setColormap(QIM::QImPlot3DColormap_Viridis);
     surface->setLineColor(color.darker(170));
     surface->setLineWidth(1.0f);
 }

@@ -2,6 +2,7 @@
 #define QIMPLOT3DITEMNODE_H
 
 #include "QImAbstractNode.h"
+#include "QImPlot3DTypes.h"
 
 namespace QIM
 {

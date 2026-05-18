@@ -2,7 +2,6 @@
 #define QIMPLOT3DMESHITEMNODE_H
 
 #include "QImPlot3DItemNode.h"
-#include "implot3d.h"
 #include <QColor>
 #include <vector>
 
@@ -38,9 +37,9 @@ public:
         return Type;
     }
 
-    void setMeshData(const std::vector< ImPlot3DPoint >& vertices, const std::vector< unsigned int >& indices);
+    void setMeshData(const std::vector< QImPlot3DPoint >& vertices, const std::vector< unsigned int >& indices);
 
-    const std::vector< ImPlot3DPoint >& vertices() const;
+    const std::vector< QImPlot3DPoint >& vertices() const;
     const std::vector< unsigned int >& indices() const;
 
     bool isLinesVisible() const;
@@ -94,10 +93,10 @@ protected:
     bool beginDraw() override;
 
 private:
-    std::vector< ImPlot3DPoint > m_vertices;
+    std::vector< QImPlot3DPoint > m_vertices;
     std::vector< unsigned int > m_indices;
     int m_meshFlags { 0 };
-    int m_markerShape { ImPlot3DMarker_None };
+    int m_markerShape { QImPlot3DMarker_None };
     float m_markerSize { 4.0f };
     float m_markerWeight { 1.0f };
     QColor m_fillColor;

@@ -144,12 +144,14 @@ set_target_properties(PlotPerformance PROPERTIES
     AUTORCC ON
 )
 
+if(QIM_INSTALL_EXAMPLES)
 include(GNUInstallDirs)
 install(TARGETS PlotPerformance
-    BUNDLE DESTINATION .
+    BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+endif()
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(PlotPerformance)

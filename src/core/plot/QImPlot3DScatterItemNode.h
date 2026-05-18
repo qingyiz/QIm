@@ -2,7 +2,6 @@
 #define QIMPLOT3DSCATTERITEMNODE_H
 
 #include "QImPlot3DItemNode.h"
-#include "implot3d.h"
 #include <QColor>
 #include <vector>
 
@@ -85,7 +84,7 @@ private:
     std::vector< double > m_xData;
     std::vector< double > m_yData;
     std::vector< double > m_zData;
-    int m_markerShape { ImPlot3DMarker_Circle };
+    int m_markerShape { QImPlot3DMarker_Circle };
     float m_markerSize { 4.0f };
     float m_markerWeight { 1.0f };
     QColor m_fillColor;

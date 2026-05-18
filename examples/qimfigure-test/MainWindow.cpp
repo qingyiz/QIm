@@ -528,7 +528,7 @@ void MainWindow::drawPlot3D()
         QIM::QImPlot3DScatterItemNode* scatter = new QIM::QImPlot3DScatterItemNode(plot2);
         scatter->setLabel("Samples");
         scatter->setData(scatterX, scatterY, scatterZ);
-        scatter->setMarkerShape(ImPlot3DMarker_Square);
+        scatter->setMarkerShape(QIM::QImPlot3DMarker_Square);
         scatter->setMarkerSize(5.0f);
         scatter->setMarkerWeight(1.5f);
         scatter->setFillColor(QColor(255, 140, 0));
@@ -567,7 +567,7 @@ void MainWindow::drawPlot3D()
         surface->setLabel("Wave Surface");
         surface->setData(xs, ys, zs, xCount, yCount);
         surface->setColormapEnabled(true);
-        surface->setColormap(ImPlot3DColormap_Viridis);
+        surface->setColormap(QIM::QImPlot3DColormap_Viridis);
         surface->setLineColor(QColor(20, 60, 120));
         surface->setLineWidth(1.0f);
     }
@@ -605,7 +605,7 @@ void MainWindow::drawPlot3D()
         wireframe->setLabel("Wave Wireframe");
         wireframe->setData(xs, ys, zs, xCount, yCount);
         wireframe->setColormapEnabled(true);
-        wireframe->setColormap(ImPlot3DColormap_Viridis);
+        wireframe->setColormap(QIM::QImPlot3DColormap_Viridis);
         wireframe->setFillVisible(false);
         wireframe->setMarkersVisible(false);
         wireframe->setLineWidth(1.1f);

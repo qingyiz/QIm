@@ -1,5 +1,6 @@
 #include "QImPlot3DMeshItemNode.h"
 #include "QtImGuiUtils.h"
+#include "implot3d.h"
 
 namespace QIM
 {
@@ -11,14 +12,14 @@ QImPlot3DMeshItemNode::~QImPlot3DMeshItemNode()
 {
 }
 
-void QImPlot3DMeshItemNode::setMeshData(const std::vector< ImPlot3DPoint >& vertices, const std::vector< unsigned int >& indices)
+void QImPlot3DMeshItemNode::setMeshData(const std::vector< QImPlot3DPoint >& vertices, const std::vector< unsigned int >& indices)
 {
     m_vertices = vertices;
     m_indices = indices;
     Q_EMIT dataChanged();
 }
 
-const std::vector< ImPlot3DPoint >& QImPlot3DMeshItemNode::vertices() const
+const std::vector< QImPlot3DPoint >& QImPlot3DMeshItemNode::vertices() const
 {
     return m_vertices;
 }
@@ -219,11 +220,17 @@ bool QImPlot3DMeshItemNode::beginDraw()
         ImPlot3D::SetNextMarkerStyle(static_cast< ImPlot3DMarker >(m_markerShape), m_markerSize, fill, m_markerWeight, outline);
     }
 
+    std::vector< ImPlot3DPoint > vertices;
+    vertices.reserve(m_vertices.size());
+    for (const auto& point : m_vertices) {
+        vertices.emplace_back(point.x, point.y, point.z);
+    }
+
     ImPlot3D::PlotMesh(
         labelConstData(),
-        m_vertices.data(),
+        vertices.data(),
         m_indices.data(),
-        static_cast< int >(m_vertices.size()),
+        static_cast< int >(vertices.size()),
         static_cast< int >(m_indices.size()),
         static_cast< ImPlot3DMeshFlags >(m_meshFlags)
     );

@@ -2,7 +2,6 @@
 #define QIMPLOTHISTOGRAMITEMNODE_H
 
 #include "QImPlotItemNode.h"
-#include "implot.h"
 #include <QColor>
 #include <vector>
 
@@ -89,9 +88,9 @@ protected:
 
 private:
     std::vector< double > m_values;
-    int m_binCount { ImPlotBin_Sturges };
+    int m_binCount { -2 };
     double m_barScale { 1.0 };
-    int m_histogramFlags { ImPlotHistogramFlags_None };
+    int m_histogramFlags { 0 };
     bool m_rangeEnabled { false };
     double m_rangeMin { 0.0 };
     double m_rangeMax { 0.0 };

@@ -33,6 +33,8 @@ option(QIM_ENABLE_DEBUG_PRINT "Enable Debug Print" ON)
 option(QIM_ENABLE_DEBUG_PRINT_FPS "Enable Debug Print fps" ON)
 option(QIM_ENABLE_BENCHMARK "Enable build benchmark" ON)
 option(QIM_BUILD_QML "Build QML compatibility layer" OFF) # TODO:QML
+option(QIM_INSTALL_IN_PROJECT "Install QIm into the source-tree install/<platform> directory" ON)
+option(QIM_INSTALL_EXAMPLES "Install QIm examples and benchmark applications" OFF)
 
 
 # postfix
@@ -66,6 +68,44 @@ endif()
 if(CMAKE_GENERATOR STREQUAL "Ninja")
     # ninja
     set(CMAKE_NINJA_FORCE_RESPONSE_FILE "1")
+endif()
+
+########################################################
+# install layout
+########################################################
+include(GNUInstallDirs)
+
+if(WIN32)
+    set(_QIM_INSTALL_OS "windows")
+elseif(APPLE)
+    set(_QIM_INSTALL_OS "macos")
+elseif(UNIX)
+    set(_QIM_INSTALL_OS "linux")
+else()
+    string(TOLOWER "${CMAKE_SYSTEM_NAME}" _QIM_INSTALL_OS)
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR)
+    set(_QIM_INSTALL_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+else()
+    set(_QIM_INSTALL_ARCH "unknown-arch")
+endif()
+
+if(CMAKE_CXX_COMPILER_ID)
+    set(_QIM_INSTALL_COMPILER "${CMAKE_CXX_COMPILER_ID}")
+else()
+    set(_QIM_INSTALL_COMPILER "unknown-compiler")
+endif()
+
+set(_QIM_INSTALL_PLATFORM_DEFAULT "${_QIM_INSTALL_OS}-${_QIM_INSTALL_ARCH}-${_QIM_INSTALL_COMPILER}")
+string(TOLOWER "${_QIM_INSTALL_PLATFORM_DEFAULT}" _QIM_INSTALL_PLATFORM_DEFAULT)
+string(REGEX REPLACE "[^a-z0-9_.+-]" "-" _QIM_INSTALL_PLATFORM_DEFAULT "${_QIM_INSTALL_PLATFORM_DEFAULT}")
+
+set(QIM_INSTALL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/install" CACHE PATH "Root directory for project-local QIm installs")
+set(QIM_INSTALL_PLATFORM_DIR "${_QIM_INSTALL_PLATFORM_DEFAULT}" CACHE STRING "Platform directory name used below QIM_INSTALL_ROOT")
+
+if(QIM_INSTALL_IN_PROJECT)
+    set(CMAKE_INSTALL_PREFIX "${QIM_INSTALL_ROOT}/${QIM_INSTALL_PLATFORM_DIR}" CACHE PATH "QIm install prefix" FORCE)
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -203,7 +243,6 @@ endif()
 ########################################################
 # 总安装
 ########################################################
-include(GNUInstallDirs)
 # 生成统一的 QImConfig.cmake
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
@@ -227,6 +266,13 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
+install(CODE
+    "file(MAKE_DIRECTORY
+        \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}\"
+        \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}\"
+        \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
+    )"
+)
 
 
 
@@ -235,5 +281,6 @@ message(STATUS "==========================================")
 message(STATUS "  Project: ${PROJECT_NAME} v${PROJECT_VERSION}")
 message(STATUS "  CMake: ${CMAKE_VERSION}")
 message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Install Prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "==========================================")
 message(STATUS "")
