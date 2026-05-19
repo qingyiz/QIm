@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QPointer>
 // imguis
 #include "QtImGui.h"
 #include "imgui.h"
@@ -90,6 +91,8 @@ public:
     bool shouldUseHighFPS() const;
     //
     void adaptiveTimer();
+    //
+    bool canRequestRender() const;
 
 public:
     //----------------------------------------------------
@@ -98,6 +101,9 @@ public:
     QTimer* timer { nullptr };
     QElapsedTimer paintElapsed;
     QtImGui::RenderRef imguiRenderRef { nullptr };  ///< 专门针对此窗口的上下文
+    bool glInitialized { false };
+    bool isDestroying { false };
+    bool renderRequestPending { false };
     QColor backgroundColor { Qt::white };           ///< 记录背景颜色
     RenderMode renderMode { RenderAdaptive };
     int minRenderInterval { 16 };  ///< 最小渲染间隔(ms)，对应约60FPS
@@ -295,6 +301,11 @@ bool QImWidget::PrivateData::needDemandUpdate() const
 bool QImWidget::PrivateData::needStartContinuousTimer() const
 {
     return ((renderMode == RenderContinuous) || (renderMode == RenderAdaptive));
+}
+
+bool QImWidget::PrivateData::canRequestRender() const
+{
+    return (!isDestroying && glInitialized && q_ptr && q_ptr->isVisible() && q_ptr->width() > 0 && q_ptr->height() > 0);
 }
 
 bool QImWidget::PrivateData::shouldUseHighFPS() const
@@ -501,6 +512,12 @@ QImWidget::QImWidget(QWidget* parent, Qt::WindowFlags f) : QOpenGLWidget(parent,
 
 QImWidget::~QImWidget()
 {
+    QIM_D(d);
+    d->isDestroying = true;
+    d->renderRequestPending = false;
+    if (d->timer && d->timer->isActive()) {
+        d->timer->stop();
+    }
 }
 
 void QImWidget::setRenderMode(RenderMode mode)
@@ -534,7 +551,24 @@ int QImWidget::refreshInterval() const
 
 void QImWidget::requestRender()
 {
-    update();  // 触发 Qt 的重新绘制
+    QIM_D(d);
+    if (!d->canRequestRender() || d->renderRequestPending) {
+        return;
+    }
+
+    d->renderRequestPending = true;
+    QPointer< QImWidget > that(this);
+    QTimer::singleShot(0, this, [that]() {
+        if (!that || !that->d_ptr) {
+            return;
+        }
+
+        PrivateData* d = that->d_ptr.get();
+        d->renderRequestPending = false;
+        if (d->canRequestRender()) {
+            that->update();  // 触发 Qt 的重新绘制
+        }
+    });
 }
 
 int QImWidget::minRenderInterval() const
@@ -662,7 +696,8 @@ void QImWidget::initializeGL()
     initializeOpenGLFunctions();
     d->imguiRenderRef = QtImGui::initialize(this, false);  // 这里每个窗口一个上下文，必须传入false
     d->imguiContext   = ImGui::GetCurrentContext();
-    connect(d->timer, &QTimer::timeout, this, qOverload<>(&QWidget::update));
+    d->glInitialized  = true;
+    connect(d->timer, &QTimer::timeout, this, &QImWidget::requestRender);
 }
 
 void QImWidget::paintGL()
@@ -718,7 +753,7 @@ void QImWidget::paintGL()
         QtImGui::render(d->imguiRenderRef);
     }
     if (d->needDemandUpdate() && d->renderScheduler.consumeFollowupFrame()) {
-        update();
+        requestRender();
     }
     // 重置计时
     d->paintElapsed.restart();
