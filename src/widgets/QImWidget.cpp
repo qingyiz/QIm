@@ -79,6 +79,8 @@ public:
     PrivateData(QImWidget* p);
     ~PrivateData();
     //
+    void initialize();
+    //
     void reloadFontFile();
     //
     void updateFontGlyphRanges();
@@ -151,7 +153,15 @@ public:
 
 QImWidget::PrivateData::PrivateData(QImWidget* p) : q_ptr(p)
 {
-    timer = new QTimer(p);
+}
+
+QImWidget::PrivateData::~PrivateData()
+{
+}
+
+void QImWidget::PrivateData::initialize()
+{
+    timer = new QTimer(q_ptr);
     timer->setInterval(lowInterval);  // 18FPS
     paintElapsed.restart();
     // 字体相关初始化
@@ -179,10 +189,6 @@ QImWidget::PrivateData::PrivateData(QImWidget* p) : q_ptr(p)
     imwidgetNode->setFitToGLViewPort(true, true);
     imwidgetNode->setToFrameLess(true);
     rootRenderNode.reset(imwidgetNode);
-}
-
-QImWidget::PrivateData::~PrivateData()
-{
 }
 
 void QImWidget::PrivateData::reloadFontFile()
@@ -508,6 +514,7 @@ void QImWidget::PrivateData::drawFPSToast()
 
 QImWidget::QImWidget(QWidget* parent, Qt::WindowFlags f) : QOpenGLWidget(parent, f), QIM_PIMPL_CONSTRUCT
 {
+    d_ptr->initialize();
     d_ptr->isConstructing = false;
     d_ptr->applyRenderMode();
 }
