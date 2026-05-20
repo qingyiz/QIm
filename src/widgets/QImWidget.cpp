@@ -101,6 +101,7 @@ public:
     QTimer* timer { nullptr };
     QElapsedTimer paintElapsed;
     QtImGui::RenderRef imguiRenderRef { nullptr };  ///< 专门针对此窗口的上下文
+    bool isConstructing { true };
     bool glInitialized { false };
     bool isDestroying { false };
     bool renderRequestPending { false };
@@ -178,7 +179,6 @@ QImWidget::PrivateData::PrivateData(QImWidget* p) : q_ptr(p)
     imwidgetNode->setFitToGLViewPort(true, true);
     imwidgetNode->setToFrameLess(true);
     rootRenderNode.reset(imwidgetNode);
-    applyRenderMode();
 }
 
 QImWidget::PrivateData::~PrivateData()
@@ -508,6 +508,8 @@ void QImWidget::PrivateData::drawFPSToast()
 
 QImWidget::QImWidget(QWidget* parent, Qt::WindowFlags f) : QOpenGLWidget(parent, f), QIM_PIMPL_CONSTRUCT
 {
+    d_ptr->isConstructing = false;
+    d_ptr->applyRenderMode();
 }
 
 QImWidget::~QImWidget()
@@ -785,7 +787,7 @@ void QImWidget::changeEvent(QEvent* e)
 
 bool QImWidget::event(QEvent* e)
 {
-    if (!d_ptr) {
+    if (!d_ptr || d_ptr->isConstructing || d_ptr->isDestroying) {
         return QOpenGLWidget::event(e);
     }
 
