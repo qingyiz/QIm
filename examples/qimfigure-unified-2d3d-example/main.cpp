@@ -52,14 +52,34 @@ int main(int argc, char* argv[])
         std::vector< double > xs;
         std::vector< double > ys;
         std::vector< double > zs;
+        std::vector< double > xsOuter;
+        std::vector< double > ysOuter;
+        std::vector< double > zsOuter;
+        std::vector< double > xsWave;
+        std::vector< double > ysWave;
+        std::vector< double > zsWave;
         xs.reserve(240);
         ys.reserve(240);
         zs.reserve(240);
+        xsOuter.reserve(240);
+        ysOuter.reserve(240);
+        zsOuter.reserve(240);
+        xsWave.reserve(240);
+        ysWave.reserve(240);
+        zsWave.reserve(240);
         for (int i = 0; i < 240; ++i) {
             const double t = static_cast< double >(i) * 0.08;
             xs.push_back(std::cos(t));
             ys.push_back(std::sin(t));
             zs.push_back(t * 0.2);
+
+            xsOuter.push_back(1.35 * std::cos(t + 0.45));
+            ysOuter.push_back(1.35 * std::sin(t + 0.45));
+            zsOuter.push_back(t * 0.2 + 0.25);
+
+            xsWave.push_back(0.65 * std::cos(t));
+            ysWave.push_back(0.65 * std::sin(t));
+            zsWave.push_back(t * 0.2 + 0.35 * std::sin(t * 1.7));
         }
 
         auto* line = new QIM::QImPlot3DLineItemNode(plot);
@@ -67,6 +87,30 @@ int main(int argc, char* argv[])
         line->setData(xs, ys, zs);
         line->setColor(QColor(33, 150, 243));
         line->setLineWidth(2.0f);
+
+        auto* dashedLine = new QIM::QImPlot3DLineItemNode(plot);
+        dashedLine->setLabel("offset dashed");
+        dashedLine->setData(xsOuter, ysOuter, zsOuter);
+        dashedLine->setColor(QColor(230, 126, 34));
+        dashedLine->setLineStyle(Qt::DashLine);
+        dashedLine->setLineWidth(2.5f);
+        dashedLine->setMarkerShape(ImPlot3DMarker_Square);
+        dashedLine->setMarkerSize(3.5f);
+        dashedLine->setMarkerWeight(1.2f);
+        dashedLine->setMarkerFillColor(QColor(255, 205, 120));
+        dashedLine->setMarkerOutlineColor(QColor(180, 82, 20));
+
+        auto* dashDotLine = new QIM::QImPlot3DLineItemNode(plot);
+        dashDotLine->setLabel("wavy dash-dot");
+        dashDotLine->setData(xsWave, ysWave, zsWave);
+        dashDotLine->setColor(QColor(46, 160, 120));
+        dashDotLine->setLineStyle(Qt::DashDotLine);
+        dashDotLine->setLineWidth(2.0f);
+        dashDotLine->setMarkerShape(ImPlot3DMarker_Diamond);
+        dashDotLine->setMarkerSize(4.0f);
+        dashDotLine->setMarkerWeight(1.4f);
+        dashDotLine->setMarkerFillColor(QColor(150, 230, 190));
+        dashDotLine->setMarkerOutlineColor(QColor(20, 110, 82));
     }
 
     if (QIM::QImPlotNode* plot = figure->createPlotNode({ 2 })) {
