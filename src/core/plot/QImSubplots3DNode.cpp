@@ -191,6 +191,32 @@ int QImSubplots3DNode::plotCount() const
     return plotNodes().size();
 }
 
+bool QImSubplots3DNode::takePlotNode(QImPlot3DNode* plot)
+{
+    if (!plot) {
+        return false;
+    }
+
+    QImAbstractNode* cell = plot->parentNode();
+    if (!cell || cell->parentNode() != this) {
+        return false;
+    }
+
+    const bool taken = cell->takeChildNode(plot);
+    if (cell->childNodeCount() == 0) {
+        takeChildNode(cell);
+        cell->deleteLater();
+    }
+    return taken;
+}
+
+void QImSubplots3DNode::removePlotNode(QImPlot3DNode* plot)
+{
+    if (takePlotNode(plot)) {
+        plot->deleteLater();
+    }
+}
+
 bool QImSubplots3DNode::beginDraw()
 {
     const ImVec2 cursorPos = ImGui::GetCursorPos();

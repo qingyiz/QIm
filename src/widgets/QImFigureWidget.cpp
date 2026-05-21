@@ -155,6 +155,30 @@ public:
                                m_mixedPlotOrder.end());
     }
 
+    bool replaceMixedPlot(QImAbstractNode* oldPlot, QImAbstractNode* newPlot)
+    {
+        if (!oldPlot || !newPlot) {
+            return false;
+        }
+
+        if (MixedPlotLayout* oldLayout = findLayout(oldPlot)) {
+            oldLayout->plot = newPlot;
+            return true;
+        }
+
+        return addMixedPlot(newPlot, {});
+    }
+
+    int mixedPlotOrderIndex(QImAbstractNode* plot) const
+    {
+        for (int index = 0; index < static_cast< int >(m_mixedPlotOrder.size()); ++index) {
+            if (m_mixedPlotOrder[ index ].plot == plot) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
 protected:
     bool beginDraw() override
     {
@@ -1182,6 +1206,80 @@ QList< QImPlot3DNode* > QImFigureWidget::plot3DNodes() const
 int QImFigureWidget::plot3DCount() const
 {
     return d_ptr->m_subplot3DNode ? d_ptr->m_subplot3DNode->plotCount() : 0;
+}
+
+QImAbstractNode* QImFigureWidget::convertCoordinateNode(QImAbstractNode* plot, CoordinateNodeType targetType)
+{
+    if (!plot) {
+        return nullptr;
+    }
+
+    if (targetType == Coordinate2D) {
+        if (QImPlotNode* plot2D = qobject_cast< QImPlotNode* >(plot)) {
+            return plot2D;
+        }
+        return convertPlot3DNodeTo2D(qobject_cast< QImPlot3DNode* >(plot));
+    }
+
+    if (QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(plot)) {
+        return plot3D;
+    }
+    return convertPlotNodeTo3D(qobject_cast< QImPlotNode* >(plot));
+}
+
+QImPlot3DNode* QImFigureWidget::convertPlotNodeTo3D(QImPlotNode* plot)
+{
+    QIM_D(d);
+    if (!plot || !d->m_subplotNode || !d->m_subplot3DNode || !d->m_contentNode) {
+        return nullptr;
+    }
+    if (!plotNodes().contains(plot)) {
+        return nullptr;
+    }
+
+    const bool wasSelected = selectedCoordinateNodes().contains(plot);
+    QImPlot3DNode* newPlot = d->m_subplot3DNode->createPlotNode();
+    if (!newPlot) {
+        return nullptr;
+    }
+
+    d->attachPlot3DNode(newPlot);
+    d->m_contentNode->replaceMixedPlot(plot, newPlot);
+    d->m_subplotNode->removeChildNode(plot);
+    Q_EMIT plot3DNodeAttached(newPlot, true);
+
+    if (wasSelected) {
+        d->selectCoordinateNode(newPlot);
+    }
+    requestRender();
+    return newPlot;
+}
+
+QImPlotNode* QImFigureWidget::convertPlot3DNodeTo2D(QImPlot3DNode* plot)
+{
+    QIM_D(d);
+    if (!plot || !d->m_subplotNode || !d->m_subplot3DNode || !d->m_contentNode) {
+        return nullptr;
+    }
+    if (!plot3DNodes().contains(plot)) {
+        return nullptr;
+    }
+
+    const bool wasSelected = selectedCoordinateNodes().contains(plot);
+    const int mixedIndex = d->m_contentNode->mixedPlotOrderIndex(plot);
+    QImPlotNode* newPlot = new QImPlotNode();
+    d->m_subplotNode->insertPlotNode(mixedIndex, newPlot);
+    d->m_contentNode->replaceMixedPlot(plot, newPlot);
+
+    d->detachPlot3DNode(plot);
+    d->m_subplot3DNode->removePlotNode(plot);
+    Q_EMIT plot3DNodeAttached(plot, false);
+
+    if (wasSelected) {
+        d->selectCoordinateNode(newPlot);
+    }
+    requestRender();
+    return newPlot;
 }
 
 QList< QImAbstractNode* > QImFigureWidget::selectedCoordinateNodes() const

@@ -28,6 +28,13 @@ class QIM_WIDGETS_API QImFigureWidget : public QImWidget
     Q_OBJECT
     QIM_DECLARE_PRIVATE(QImFigureWidget)
 public:
+    enum CoordinateNodeType
+    {
+        Coordinate2D,
+        Coordinate3D
+    };
+    Q_ENUM(CoordinateNodeType)
+
     QImFigureWidget(QWidget* parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
     ~QImFigureWidget();
     // ===========================
@@ -88,6 +95,10 @@ public:
     QImPlot3DNode* createPlot3DNode(std::initializer_list< int > subplotIndices);
     QList< QImPlot3DNode* > plot3DNodes() const;
     int plot3DCount() const;
+    // 将已有坐标系节点替换为另一种类型；原节点会从figure中删除，新节点保留原subplot位置/顺序
+    QImAbstractNode* convertCoordinateNode(QImAbstractNode* plot, CoordinateNodeType targetType);
+    QImPlot3DNode* convertPlotNodeTo3D(QImPlotNode* plot);
+    QImPlotNode* convertPlot3DNodeTo2D(QImPlot3DNode* plot);
     // ===========================
     //  selection
     // ===========================

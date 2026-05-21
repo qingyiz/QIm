@@ -53,6 +53,8 @@ public:
     QImPlot3DNode* createPlotNode();
     QList< QImPlot3DNode* > plotNodes() const;
     int plotCount() const;
+    bool takePlotNode(QImPlot3DNode* plot);
+    void removePlotNode(QImPlot3DNode* plot);
 
 Q_SIGNALS:
     void titleChanged(const QString& title);

@@ -306,6 +306,11 @@ bool QImPlot3DLineItemNode::beginDraw()
             return false;
         }
 
+        const ImVec2 clipMin = ImPlot3D::GetPlotRectPos();
+        const ImVec2 clipSize = ImPlot3D::GetPlotRectSize();
+        const ImVec2 clipMax(clipMin.x + clipSize.x, clipMin.y + clipSize.y);
+        ImGui::PushClipRect(clipMin, clipMax, true);
+
         ImU32 drawColor = IM_COL32(255, 255, 255, 255);
         drawColor = ImGui::GetColorU32(lineColor);
 
@@ -366,6 +371,7 @@ bool QImPlot3DLineItemNode::beginDraw()
                               m_lineWidth,
                               drawColor);
         }
+        ImGui::PopClipRect();
     }
     return false;
 }
