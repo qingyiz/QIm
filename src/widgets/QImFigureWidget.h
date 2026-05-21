@@ -9,6 +9,7 @@
 namespace QIM
 {
 class QImSubplotsNode;
+class QImAbstractNode;
 class QImPlotNode;
 class QImSubplots3DNode;
 class QImPlot3DNode;
@@ -87,6 +88,16 @@ public:
     QImPlot3DNode* createPlot3DNode(std::initializer_list< int > subplotIndices);
     QList< QImPlot3DNode* > plot3DNodes() const;
     int plot3DCount() const;
+    // ===========================
+    //  selection
+    // ===========================
+    QList< QImAbstractNode* > selectedCoordinateNodes() const;
+    QList< QImPlotNode* > selectedPlotNodes() const;
+    QList< QImPlot3DNode* > selectedPlot3DNodes() const;
+    QImAbstractNode* currentCoordinateNode() const;
+    QImPlotNode* currentPlotNode() const;
+    QImPlot3DNode* currentPlot3DNode() const;
+    void clearCoordinateSelection();
 Q_SIGNALS:
     /**
      * @brief QImPlotNode的添加或删除的信号，此信号等同绑定subplotNode的childNodeAdded/childNodeRemoved
@@ -95,6 +106,9 @@ Q_SIGNALS:
      */
     void plotNodeAttached(QIM::QImPlotNode* plot, bool attach);
     void plot3DNodeAttached(QIM::QImPlot3DNode* plot, bool attach);
+    void coordinateSelectionChanged(const QList< QIM::QImAbstractNode* >& selectedNodes,
+                                    QIM::QImAbstractNode* currentNode);
+    void currentCoordinateNodeChanged(QIM::QImAbstractNode* currentNode);
 
 protected:
     void initializeGL() override;
@@ -104,6 +118,8 @@ private Q_SLOTS:
     void onSubplotChildNodeAdded(QIM::QImAbstractNode* c);
     void onSubplot3DChildNodeRemoved(QIM::QImAbstractNode* c);
     void onSubplot3DChildNodeAdded(QIM::QImAbstractNode* c);
+    void onPlotNodeClicked(QIM::QImPlotNode* plot);
+    void onPlot3DNodeClicked(QIM::QImPlot3DNode* plot);
 };
 }
 #endif  // QIMFIGUREWIDGET_H

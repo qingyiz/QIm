@@ -26,6 +26,7 @@ class QIM_CORE_API QImPlot3DNode : public QImAbstractNode
     Q_PROPERTY(bool menusEnabled READ isMenusEnabled WRITE setMenusEnabled NOTIFY plotFlagChanged)
     Q_PROPERTY(bool clippingEnabled READ isClippingEnabled WRITE setClippingEnabled NOTIFY plotFlagChanged)
     Q_PROPERTY(bool equal READ isEqual WRITE setEqual NOTIFY plotFlagChanged)
+    Q_PROPERTY(bool selected READ isSelected WRITE setSelected NOTIFY selectedChanged)
 
 public:
     enum Axis
@@ -83,6 +84,8 @@ public:
 
     void addPlotItem(QImPlot3DItemNode* item);
     QList< QImPlot3DItemNode* > plotItemNodes() const;
+    bool isSelected() const;
+    void setSelected(bool selected);
 
 Q_SIGNALS:
     void titleChanged(const QString& title);
@@ -90,6 +93,8 @@ Q_SIGNALS:
     void autoSizeChanged(bool autoSize);
     void axisLabelChanged();
     void plotFlagChanged();
+    void selectedChanged(bool selected);
+    void plotClicked(QIM::QImPlot3DNode* plot);
 
 protected:
     bool beginDraw() override;
@@ -115,6 +120,7 @@ private:
     int m_plotFlags { 0 };
     AxisLimits m_axisLimits[ 3 ];
     bool m_beginPlotSuccess { false };
+    bool m_selected { false };
 };
 }  // namespace QIM
 

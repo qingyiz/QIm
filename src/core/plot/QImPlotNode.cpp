@@ -3,6 +3,7 @@
 #include <vector>
 #include <array>
 // implot
+#include "imgui.h"
 #include "implot.h"
 #include "implot_internal.h"  // 用于 ImAxis 枚举
 // Qt
@@ -18,6 +19,33 @@
 #include "QImPlotStateOverviewItemNode.h"
 namespace QIM
 {
+namespace
+{
+void drawSelectionCorners(ImDrawList* drawList, const ImRect& rect)
+{
+    if (!drawList) {
+        return;
+    }
+
+    constexpr float length = 16.0f;
+    constexpr float thickness = 3.0f;
+    const ImU32 fillColor = IM_COL32(64, 156, 255, 28);
+    const ImU32 color = IM_COL32(64, 156, 255, 255);
+    const ImVec2 min = rect.Min;
+    const ImVec2 max = rect.Max;
+
+    drawList->AddRectFilled(min, max, fillColor);
+    drawList->AddLine(min, ImVec2(min.x + length, min.y), color, thickness);
+    drawList->AddLine(min, ImVec2(min.x, min.y + length), color, thickness);
+    drawList->AddLine(ImVec2(max.x - length, min.y), ImVec2(max.x, min.y), color, thickness);
+    drawList->AddLine(ImVec2(max.x, min.y), ImVec2(max.x, min.y + length), color, thickness);
+    drawList->AddLine(ImVec2(min.x, max.y - length), ImVec2(min.x, max.y), color, thickness);
+    drawList->AddLine(ImVec2(min.x, max.y), ImVec2(min.x + length, max.y), color, thickness);
+    drawList->AddLine(ImVec2(max.x - length, max.y), max, color, thickness);
+    drawList->AddLine(ImVec2(max.x, max.y - length), max, color, thickness);
+}
+
+}  // namespace
 
 // PIMPL 实现
 class QImPlotNode::PrivateData
@@ -39,6 +67,7 @@ public:
     // 交互标志
     ImPlotFlags plotFlags { ImPlotFlags_None };
     bool beginPlotSuccess { false };
+    bool selected { false };
     //===============================================================
     // 固定的节点
     //===============================================================
@@ -718,6 +747,21 @@ void QImPlotNode::setAxesToFit()
     d_ptr->axesToFit = true;
 }
 
+bool QImPlotNode::isSelected() const
+{
+    QIM_DC(d);
+    return d->selected;
+}
+
+void QImPlotNode::setSelected(bool selected)
+{
+    QIM_D(d);
+    if (d->selected != selected) {
+        d->selected = selected;
+        Q_EMIT selectedChanged(selected);
+    }
+}
+
 bool QImPlotNode::beginDraw()
 {
     QIM_D(d);
@@ -734,6 +778,9 @@ bool QImPlotNode::beginDraw()
         return true;
     }
     d->plot = ImPlot::GetCurrentPlot();
+    if (d->plot->Hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        Q_EMIT plotClicked(this);
+    }
     // 构建坐标轴
     d->renderAllAxis();
     d->legendNode->apply();
@@ -743,6 +790,9 @@ bool QImPlotNode::beginDraw()
 void QImPlotNode::endDraw()
 {
     if (d_ptr->beginPlotSuccess) {
+        if (d_ptr->selected && d_ptr->plot) {
+            drawSelectionCorners(ImGui::GetWindowDrawList(), d_ptr->plot->FrameRect);
+        }
         ImPlot::EndPlot();
     }
 }

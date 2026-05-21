@@ -716,6 +716,13 @@ class QImFigureWidget::PrivateData
     QIM_DECLARE_PUBLIC(QImFigureWidget)
 public:
     PrivateData(QImFigureWidget* p);
+    void attachPlotNode(QImPlotNode* plot);
+    void detachPlotNode(QImPlotNode* plot);
+    void attachPlot3DNode(QImPlot3DNode* plot);
+    void detachPlot3DNode(QImPlot3DNode* plot);
+    void selectCoordinateNode(QImAbstractNode* plot);
+    void removeCoordinateNode(QImAbstractNode* plot);
+    void emitSelectionChangedIfNeeded(const QList< QImAbstractNode* >& oldSelection, QImAbstractNode* oldCurrent);
 
 public:
     QImTrackedValue< QImPlotTheme > m_theme;
@@ -727,10 +734,135 @@ public:
     bool m_usingMatlabLayout { false };
     int m_matlabLayoutRows { 1 };
     int m_matlabLayoutCols { 1 };
+    QList< QPointer< QImAbstractNode > > m_selectedCoordinateNodes;
+    QPointer< QImAbstractNode > m_currentCoordinateNode;
 };
 
 QImFigureWidget::PrivateData::PrivateData(QImFigureWidget* p) : q_ptr(p)
 {
+}
+
+void QImFigureWidget::PrivateData::attachPlotNode(QImPlotNode* plot)
+{
+    QImFigureWidget* q = q_func();
+    if (!plot) {
+        return;
+    }
+    QObject::connect(plot, &QImPlotNode::plotClicked, q, &QImFigureWidget::onPlotNodeClicked, Qt::UniqueConnection);
+}
+
+void QImFigureWidget::PrivateData::detachPlotNode(QImPlotNode* plot)
+{
+    QImFigureWidget* q = q_func();
+    if (!plot) {
+        return;
+    }
+    QObject::disconnect(plot, &QImPlotNode::plotClicked, q, &QImFigureWidget::onPlotNodeClicked);
+    removeCoordinateNode(plot);
+}
+
+void QImFigureWidget::PrivateData::attachPlot3DNode(QImPlot3DNode* plot)
+{
+    QImFigureWidget* q = q_func();
+    if (!plot) {
+        return;
+    }
+    QObject::connect(plot, &QImPlot3DNode::plotClicked, q, &QImFigureWidget::onPlot3DNodeClicked, Qt::UniqueConnection);
+}
+
+void QImFigureWidget::PrivateData::detachPlot3DNode(QImPlot3DNode* plot)
+{
+    QImFigureWidget* q = q_func();
+    if (!plot) {
+        return;
+    }
+    QObject::disconnect(plot, &QImPlot3DNode::plotClicked, q, &QImFigureWidget::onPlot3DNodeClicked);
+    removeCoordinateNode(plot);
+}
+
+void QImFigureWidget::PrivateData::selectCoordinateNode(QImAbstractNode* plot)
+{
+    if (!plot) {
+        return;
+    }
+
+    const QList< QImAbstractNode* > oldSelection = q_func()->selectedCoordinateNodes();
+    QImAbstractNode* oldCurrent = m_currentCoordinateNode.data();
+
+    m_selectedCoordinateNodes.erase(
+        std::remove_if(m_selectedCoordinateNodes.begin(),
+                       m_selectedCoordinateNodes.end(),
+                       [](const QPointer< QImAbstractNode >& selected) {
+                           return selected.isNull();
+                       }),
+        m_selectedCoordinateNodes.end());
+
+    for (QPointer< QImAbstractNode >& selected : m_selectedCoordinateNodes) {
+        if (QImPlotNode* plot2D = qobject_cast< QImPlotNode* >(selected.data())) {
+            plot2D->setSelected(false);
+        } else if (QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(selected.data())) {
+            plot3D->setSelected(false);
+        }
+    }
+    m_selectedCoordinateNodes.clear();
+
+    const auto existing = std::find_if(m_selectedCoordinateNodes.begin(),
+                                       m_selectedCoordinateNodes.end(),
+                                       [plot](const QPointer< QImAbstractNode >& selected) {
+                                           return selected == plot;
+                                       });
+    if (existing == m_selectedCoordinateNodes.end()) {
+        m_selectedCoordinateNodes.push_back(plot);
+    }
+
+    if (QImPlotNode* plot2D = qobject_cast< QImPlotNode* >(plot)) {
+        plot2D->setSelected(true);
+    } else if (QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(plot)) {
+        plot3D->setSelected(true);
+    }
+    m_currentCoordinateNode = plot;
+    emitSelectionChangedIfNeeded(oldSelection, oldCurrent);
+}
+
+void QImFigureWidget::PrivateData::removeCoordinateNode(QImAbstractNode* plot)
+{
+    if (!plot) {
+        return;
+    }
+
+    const QList< QImAbstractNode* > oldSelection = q_func()->selectedCoordinateNodes();
+    QImAbstractNode* oldCurrent = m_currentCoordinateNode.data();
+
+    m_selectedCoordinateNodes.erase(
+        std::remove_if(m_selectedCoordinateNodes.begin(),
+                       m_selectedCoordinateNodes.end(),
+                       [plot](const QPointer< QImAbstractNode >& selected) {
+                           return selected.isNull() || selected == plot;
+                       }),
+        m_selectedCoordinateNodes.end());
+    if (QImPlotNode* plot2D = qobject_cast< QImPlotNode* >(plot)) {
+        plot2D->setSelected(false);
+    } else if (QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(plot)) {
+        plot3D->setSelected(false);
+    }
+    if (m_currentCoordinateNode == plot) {
+        m_currentCoordinateNode = m_selectedCoordinateNodes.isEmpty() ? nullptr : m_selectedCoordinateNodes.back();
+    }
+    emitSelectionChangedIfNeeded(oldSelection, oldCurrent);
+}
+
+void QImFigureWidget::PrivateData::emitSelectionChangedIfNeeded(const QList< QImAbstractNode* >& oldSelection,
+                                                                QImAbstractNode* oldCurrent)
+{
+    QImFigureWidget* q = q_func();
+    const QList< QImAbstractNode* > newSelection = q->selectedCoordinateNodes();
+    QImAbstractNode* newCurrent = m_currentCoordinateNode.data();
+    if (oldCurrent != newCurrent) {
+        Q_EMIT q->currentCoordinateNodeChanged(newCurrent);
+    }
+    if (oldSelection != newSelection || oldCurrent != newCurrent) {
+        Q_EMIT q->coordinateSelectionChanged(newSelection, newCurrent);
+    }
 }
 
 //----------------------------------------------------
@@ -1003,6 +1135,7 @@ QImPlot3DNode* QImFigureWidget::createPlot3DNode()
         if (d_ptr->m_contentNode) {
             d_ptr->m_contentNode->addMixedPlot(plot);
         }
+        d_ptr->attachPlot3DNode(plot);
         Q_EMIT plot3DNodeAttached(plot, true);
     }
     return plot;
@@ -1031,6 +1164,7 @@ QImPlot3DNode* QImFigureWidget::createPlot3DNode(const std::vector< int >& subpl
     d->m_matlabLayoutRows = d->m_subplotNode->rows();
     d->m_matlabLayoutCols = d->m_subplotNode->columns();
     d->m_contentNode->setMixedPlotIndices(plot, subplotIndices);
+    d->attachPlot3DNode(plot);
     Q_EMIT plot3DNodeAttached(plot, true);
     return plot;
 }
@@ -1048,6 +1182,70 @@ QList< QImPlot3DNode* > QImFigureWidget::plot3DNodes() const
 int QImFigureWidget::plot3DCount() const
 {
     return d_ptr->m_subplot3DNode ? d_ptr->m_subplot3DNode->plotCount() : 0;
+}
+
+QList< QImAbstractNode* > QImFigureWidget::selectedCoordinateNodes() const
+{
+    QList< QImAbstractNode* > nodes;
+    for (const QPointer< QImAbstractNode >& selected : d_ptr->m_selectedCoordinateNodes) {
+        if (selected) {
+            nodes.push_back(selected.data());
+        }
+    }
+    return nodes;
+}
+
+QList< QImPlotNode* > QImFigureWidget::selectedPlotNodes() const
+{
+    QList< QImPlotNode* > plots;
+    for (QImAbstractNode* selected : selectedCoordinateNodes()) {
+        if (QImPlotNode* plot = qobject_cast< QImPlotNode* >(selected)) {
+            plots.push_back(plot);
+        }
+    }
+    return plots;
+}
+
+QList< QImPlot3DNode* > QImFigureWidget::selectedPlot3DNodes() const
+{
+    QList< QImPlot3DNode* > plots;
+    for (QImAbstractNode* selected : selectedCoordinateNodes()) {
+        if (QImPlot3DNode* plot = qobject_cast< QImPlot3DNode* >(selected)) {
+            plots.push_back(plot);
+        }
+    }
+    return plots;
+}
+
+QImAbstractNode* QImFigureWidget::currentCoordinateNode() const
+{
+    return d_ptr->m_currentCoordinateNode.data();
+}
+
+QImPlotNode* QImFigureWidget::currentPlotNode() const
+{
+    return qobject_cast< QImPlotNode* >(currentCoordinateNode());
+}
+
+QImPlot3DNode* QImFigureWidget::currentPlot3DNode() const
+{
+    return qobject_cast< QImPlot3DNode* >(currentCoordinateNode());
+}
+
+void QImFigureWidget::clearCoordinateSelection()
+{
+    const QList< QImAbstractNode* > oldSelection = selectedCoordinateNodes();
+    QImAbstractNode* oldCurrent = currentCoordinateNode();
+    for (QImAbstractNode* selected : oldSelection) {
+        if (QImPlotNode* plot = qobject_cast< QImPlotNode* >(selected)) {
+            plot->setSelected(false);
+        } else if (QImPlot3DNode* plot3D = qobject_cast< QImPlot3DNode* >(selected)) {
+            plot3D->setSelected(false);
+        }
+    }
+    d_ptr->m_selectedCoordinateNodes.clear();
+    d_ptr->m_currentCoordinateNode = nullptr;
+    d_ptr->emitSelectionChangedIfNeeded(oldSelection, oldCurrent);
 }
 
 void QImFigureWidget::initializeGL()
@@ -1077,6 +1275,7 @@ void QImFigureWidget::onSubplotChildNodeRemoved(QImAbstractNode* c)
 {
     QImPlotNode* plot = qobject_cast< QImPlotNode* >(c);
     if (plot) {
+        d_ptr->detachPlotNode(plot);
         Q_EMIT plotNodeAttached(plot, false);
     }
 }
@@ -1085,6 +1284,7 @@ void QImFigureWidget::onSubplotChildNodeAdded(QImAbstractNode* c)
 {
     QImPlotNode* plot = qobject_cast< QImPlotNode* >(c);
     if (plot) {
+        d_ptr->attachPlotNode(plot);
         Q_EMIT plotNodeAttached(plot, true);
     }
 }
@@ -1093,6 +1293,7 @@ void QImFigureWidget::onSubplot3DChildNodeRemoved(QImAbstractNode* c)
 {
     QImPlot3DNode* plot = qobject_cast< QImPlot3DNode* >(c);
     if (plot) {
+        d_ptr->detachPlot3DNode(plot);
         Q_EMIT plot3DNodeAttached(plot, false);
     }
 }
@@ -1101,8 +1302,19 @@ void QImFigureWidget::onSubplot3DChildNodeAdded(QImAbstractNode* c)
 {
     QImPlot3DNode* plot = qobject_cast< QImPlot3DNode* >(c);
     if (plot) {
+        d_ptr->attachPlot3DNode(plot);
         Q_EMIT plot3DNodeAttached(plot, true);
     }
+}
+
+void QImFigureWidget::onPlotNodeClicked(QImPlotNode* plot)
+{
+    d_ptr->selectCoordinateNode(plot);
+}
+
+void QImFigureWidget::onPlot3DNodeClicked(QImPlot3DNode* plot)
+{
+    d_ptr->selectCoordinateNode(plot);
 }
 
 }  // end namespace QIM

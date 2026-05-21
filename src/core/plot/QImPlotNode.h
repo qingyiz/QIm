@@ -51,6 +51,7 @@ class QIM_CORE_API QImPlotNode : public QImAbstractNode
     Q_PROPERTY(bool equal READ isEqual WRITE setEqual NOTIFY plotFlagChanged)
     Q_PROPERTY(bool crosshairs READ isCrosshairs WRITE setCrosshairs NOTIFY plotFlagChanged)
     Q_PROPERTY(bool canvasEnabled READ isCanvasEnabled WRITE setCanvasEnabled NOTIFY plotFlagChanged)
+    Q_PROPERTY(bool selected READ isSelected WRITE setSelected NOTIFY selectedChanged)
     // impl
     Q_DISABLE_COPY(QImPlotNode)
 
@@ -159,11 +160,15 @@ public:
     // 自适应坐标轴，让所有曲线都能显示
     void rescaleAxes();
     void setAxesToFit();
+    bool isSelected() const;
+    void setSelected(bool selected);
 Q_SIGNALS:
     void titleChanged(const QString& title);
     void sizeChanged(const QSizeF& size);
     void autoSizeChanged(bool autoSize);
     void plotFlagChanged();
+    void selectedChanged(bool selected);
+    void plotClicked(QIM::QImPlotNode* plot);
 
 protected:
     bool beginDraw() override;
