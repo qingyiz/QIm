@@ -4,6 +4,7 @@
 #include "QImAbstractNode.h"
 #include "QImTrackedValue.hpp"
 #include "implot.h"
+#include "implot_internal.h"
 #include "implot3d.h"
 #include "imgui.h"
 #include "plot/QImSubplotsNode.h"
@@ -711,19 +712,23 @@ private:
                           ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus,
                           ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_NoMenus);
 
-        const ImVec2 cellPos = ImPlot::GetPlotPos();
-        const ImVec2 cellSize = ImPlot::GetPlotSize();
+        const ImVec2 plotPos = ImPlot::GetPlotPos();
+        const ImVec2 plotSize = ImPlot::GetPlotSize();
+        ImRect cellRect(plotPos, ImVec2(plotPos.x + plotSize.x, plotPos.y + plotSize.y));
+        if (ImPlotPlot* currentPlot = ImPlot::GetCurrentPlot()) {
+            cellRect = currentPlot->FrameRect;
+        }
         ImPlot::EndPlot();
 
         const ImVec2 restoreCursor = ImGui::GetCursorScreenPos();
-        ImGui::SetCursorScreenPos(cellPos);
+        ImGui::SetCursorScreenPos(cellRect.Min);
         ImGui::BeginChild(
             "##Mixed3DSubplotCell",
-            cellSize,
+            cellRect.GetSize(),
             false,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
         plot3D->setAutoSize(false);
-        plot3D->setSize(QSizeF(cellSize.x, cellSize.y));
+        plot3D->setSize(QSizeF(cellRect.GetWidth(), cellRect.GetHeight()));
         plot3D->render();
         ImGui::EndChild();
         ImGui::PopID();

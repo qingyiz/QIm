@@ -51,6 +51,7 @@ class QIM_CORE_API QImPlotNode : public QImAbstractNode
     Q_PROPERTY(bool equal READ isEqual WRITE setEqual NOTIFY plotFlagChanged)
     Q_PROPERTY(bool crosshairs READ isCrosshairs WRITE setCrosshairs NOTIFY plotFlagChanged)
     Q_PROPERTY(bool canvasEnabled READ isCanvasEnabled WRITE setCanvasEnabled NOTIFY plotFlagChanged)
+    Q_PROPERTY(bool uniformGridLinesEnabled READ isUniformGridLinesEnabled WRITE setUniformGridLinesEnabled NOTIFY plotFlagChanged)
     Q_PROPERTY(bool selected READ isSelected WRITE setSelected NOTIFY selectedChanged)
     // impl
     Q_DISABLE_COPY(QImPlotNode)
@@ -119,6 +120,9 @@ public:
 
     bool isCanvasEnabled() const;
     void setCanvasEnabled(bool enabled);
+
+    bool isUniformGridLinesEnabled() const;
+    void setUniformGridLinesEnabled(bool enabled);
 
     // 原始标志访问
     int imPlotFlags() const;

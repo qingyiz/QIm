@@ -16,36 +16,10 @@
 #include "QImPlotItemNode.h"
 #include "QImPlotLineItemNode.h"
 #include "QImPlotLegendNode.h"
+#include "QImPlotSelectionOverlay.h"
 #include "QImPlotStateOverviewItemNode.h"
 namespace QIM
 {
-namespace
-{
-void drawSelectionCorners(ImDrawList* drawList, const ImRect& rect)
-{
-    if (!drawList) {
-        return;
-    }
-
-    constexpr float length = 16.0f;
-    constexpr float thickness = 3.0f;
-    const ImU32 fillColor = IM_COL32(64, 156, 255, 28);
-    const ImU32 color = IM_COL32(64, 156, 255, 255);
-    const ImVec2 min = rect.Min;
-    const ImVec2 max = rect.Max;
-
-    drawList->AddRectFilled(min, max, fillColor);
-    drawList->AddLine(min, ImVec2(min.x + length, min.y), color, thickness);
-    drawList->AddLine(min, ImVec2(min.x, min.y + length), color, thickness);
-    drawList->AddLine(ImVec2(max.x - length, min.y), ImVec2(max.x, min.y), color, thickness);
-    drawList->AddLine(ImVec2(max.x, min.y), ImVec2(max.x, min.y + length), color, thickness);
-    drawList->AddLine(ImVec2(min.x, max.y - length), ImVec2(min.x, max.y), color, thickness);
-    drawList->AddLine(ImVec2(min.x, max.y), ImVec2(min.x + length, max.y), color, thickness);
-    drawList->AddLine(ImVec2(max.x - length, max.y), max, color, thickness);
-    drawList->AddLine(ImVec2(max.x, max.y - length), max, color, thickness);
-}
-
-}  // namespace
 
 // PIMPL 实现
 class QImPlotNode::PrivateData
@@ -68,6 +42,9 @@ public:
     ImPlotFlags plotFlags { ImPlotFlags_None };
     bool beginPlotSuccess { false };
     bool selected { false };
+    bool uniformGridLinesEnabled { false };
+    int pushedGridStyleVars { 0 };
+    int pushedGridStyleColors { 0 };
     //===============================================================
     // 固定的节点
     //===============================================================
@@ -601,6 +578,21 @@ void QImPlotNode::setCanvasEnabled(bool enabled)
     }
 }
 
+bool QImPlotNode::isUniformGridLinesEnabled() const
+{
+    QIM_DC(d);
+    return d->uniformGridLinesEnabled;
+}
+
+void QImPlotNode::setUniformGridLinesEnabled(bool enabled)
+{
+    QIM_D(d);
+    if (d->uniformGridLinesEnabled != enabled) {
+        d->uniformGridLinesEnabled = enabled;
+        Q_EMIT plotFlagChanged();
+    }
+}
+
 /**
  * \if ENGLISH
  * @brief Returns the raw ImPlotFlags bitmask value for direct ImPlot API usage
@@ -765,11 +757,23 @@ void QImPlotNode::setSelected(bool selected)
 bool QImPlotNode::beginDraw()
 {
     QIM_D(d);
+    d->pushedGridStyleVars   = 0;
+    d->pushedGridStyleColors = 0;
     // 功能
     if (d->axesToFit.is_dirty() && d->axesToFit.value()) {
         d->axesToFit = false;
         d->axesToFit.mark_clean();
         ImPlot::SetNextAxesToFit();
+    }
+    if (d->uniformGridLinesEnabled) {
+        const ImPlotStyle& style = ImPlot::GetStyle();
+        ImVec4 gridColor         = ImPlot::GetStyleColorVec4(ImPlotCol_AxisGrid);
+        gridColor.w *= style.MinorAlpha;
+        ImPlot::PushStyleColor(ImPlotCol_AxisGrid, gridColor);
+        ImPlot::PushStyleVar(ImPlotStyleVar_MinorAlpha, 1.0f);
+        ImPlot::PushStyleVar(ImPlotStyleVar_MajorGridSize, style.MinorGridSize);
+        d->pushedGridStyleColors = 1;
+        d->pushedGridStyleVars   = 2;
     }
     const char* title   = (d->titleUtf8->isEmpty() ? nullptr : d->titleUtf8->constData());
     d->beginPlotSuccess = ImPlot::BeginPlot(title, d->size, d->plotFlags);
@@ -791,9 +795,17 @@ void QImPlotNode::endDraw()
 {
     if (d_ptr->beginPlotSuccess) {
         if (d_ptr->selected && d_ptr->plot) {
-            drawSelectionCorners(ImGui::GetWindowDrawList(), d_ptr->plot->FrameRect);
+            detail::drawPlotSelectionOverlay(ImGui::GetWindowDrawList(), d_ptr->plot->FrameRect);
         }
         ImPlot::EndPlot();
+    }
+    if (d_ptr->pushedGridStyleVars > 0) {
+        ImPlot::PopStyleVar(d_ptr->pushedGridStyleVars);
+        d_ptr->pushedGridStyleVars = 0;
+    }
+    if (d_ptr->pushedGridStyleColors > 0) {
+        ImPlot::PopStyleColor(d_ptr->pushedGridStyleColors);
+        d_ptr->pushedGridStyleColors = 0;
     }
 }
 

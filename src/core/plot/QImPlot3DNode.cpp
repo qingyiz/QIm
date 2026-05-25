@@ -1,5 +1,6 @@
 #include "QImPlot3DNode.h"
 #include "QImPlot3DItemNode.h"
+#include "QImPlotSelectionOverlay.h"
 #include "imgui.h"
 #include "implot3d.h"
 #include "implot3d_internal.h"
@@ -8,30 +9,6 @@ namespace QIM
 {
 namespace
 {
-void drawSelectionCorners(ImDrawList* drawList, const ImRect& rect)
-{
-    if (!drawList) {
-        return;
-    }
-
-    constexpr float length = 16.0f;
-    constexpr float thickness = 3.0f;
-    const ImU32 fillColor = IM_COL32(64, 156, 255, 28);
-    const ImU32 color = IM_COL32(64, 156, 255, 255);
-    const ImVec2 min = rect.Min;
-    const ImVec2 max = rect.Max;
-
-    drawList->AddRectFilled(min, max, fillColor);
-    drawList->AddLine(min, ImVec2(min.x + length, min.y), color, thickness);
-    drawList->AddLine(min, ImVec2(min.x, min.y + length), color, thickness);
-    drawList->AddLine(ImVec2(max.x - length, min.y), ImVec2(max.x, min.y), color, thickness);
-    drawList->AddLine(ImVec2(max.x, min.y), ImVec2(max.x, min.y + length), color, thickness);
-    drawList->AddLine(ImVec2(min.x, max.y - length), ImVec2(min.x, max.y), color, thickness);
-    drawList->AddLine(ImVec2(min.x, max.y), ImVec2(min.x + length, max.y), color, thickness);
-    drawList->AddLine(ImVec2(max.x - length, max.y), max, color, thickness);
-    drawList->AddLine(ImVec2(max.x, max.y - length), max, color, thickness);
-}
-
 ImAxis3D toImAxis3D(QImPlot3DNode::Axis axis)
 {
     switch (axis) {
@@ -323,9 +300,15 @@ void QImPlot3DNode::endDraw()
         if (frameHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             Q_EMIT plotClicked(this);
         }
+        const bool drawSelection = m_selected && hasFrameRect;
+        if (drawSelection) {
+            ImGui::PopClipRect();
+            detail::drawPlotSelectionFill(ImGui::GetWindowDrawList(), frameRect);
+            ImGui::PushClipRect(plot->PlotRect.Min, plot->PlotRect.Max, true);
+        }
         ImPlot3D::EndPlot();
-        if (m_selected && hasFrameRect) {
-            drawSelectionCorners(ImGui::GetWindowDrawList(), frameRect);
+        if (drawSelection) {
+            detail::drawPlotSelectionCorners(ImGui::GetWindowDrawList(), frameRect);
         }
         m_beginPlotSuccess = false;
     }
