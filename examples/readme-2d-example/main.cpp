@@ -30,9 +30,13 @@ int main(int argc, char* argv[])
     QIM::QImFigureWidget* figure = new QIM::QImFigureWidget(&window);
     figure->setSubplotGrid(2, 2);
     figure->setRenderMode(QIM::QImWidget::RenderOnDemand);
+    QIM::QImPlotTheme theme = figure->plotTheme();
+    theme.setAxisGridColor(Qt::black);
+    figure->setPlotTheme(theme);
     window.setCentralWidget(figure);
 
     if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
+        plot->setUniformGridLinesEnabled(true);
         plot->setTitle("Sine Wave");
         plot->x1Axis()->setLabel("x");
         plot->y1Axis()->setLabel("sin(x)");
@@ -51,6 +55,7 @@ int main(int argc, char* argv[])
     }
 
     if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
+        plot->setUniformGridLinesEnabled(true);
         plot->setTitle("Scatter");
         plot->x1Axis()->setLabel("x");
         plot->y1Axis()->setLabel("y");
@@ -66,6 +71,7 @@ int main(int argc, char* argv[])
     }
 
     if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
+        plot->setUniformGridLinesEnabled(true);
         plot->setTitle("Bars");
         plot->x1Axis()->setLabel("Quarter");
         plot->y1Axis()->setLabel("Revenue");
@@ -80,6 +86,7 @@ int main(int argc, char* argv[])
     }
 
     if (QIM::QImPlotNode* plot = figure->createPlotNode()) {
+        plot->setUniformGridLinesEnabled(true);
         plot->setTitle("Pie Chart");
         plot->setEqual(true);
         plot->setMouseTextEnabled(false);
