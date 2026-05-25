@@ -321,7 +321,9 @@ void QImSubplotsNode::PrivateData::renderManualLayouts()
             rect.GetSize(),
             false,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground);
+        ImPlot::PushStyleVar(ImPlotStyleVar_PlotMinSize, ImVec2(1.0f, 1.0f));
         plotNode->render();
+        ImPlot::PopStyleVar();
         ImGui::EndChild();
         ImGui::PopID();
     }

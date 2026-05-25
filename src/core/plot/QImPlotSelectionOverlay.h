@@ -45,11 +45,15 @@ inline void drawPlotSelectionCorners(ImDrawList* drawList, const ImRect& rect)
         return;
     }
 
-    const float length = plotSelectionCornerLength();
     const float thickness = plotSelectionCornerThickness();
+    const float inset = thickness * 0.5f + 1.0f;
     const ImU32 color = plotSelectionCornerColor();
-    const ImVec2 min = rect.Min;
-    const ImVec2 max = rect.Max;
+    const ImVec2 min(rect.Min.x + inset, rect.Min.y + inset);
+    const ImVec2 max(rect.Max.x - inset, rect.Max.y - inset);
+    if (max.x <= min.x || max.y <= min.y) {
+        return;
+    }
+    const float length = ImMin(plotSelectionCornerLength(), ImMin((max.x - min.x) * 0.5f, (max.y - min.y) * 0.5f));
 
     drawList->AddLine(min, ImVec2(min.x + length, min.y), color, thickness);
     drawList->AddLine(min, ImVec2(min.x, min.y + length), color, thickness);

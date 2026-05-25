@@ -671,6 +671,10 @@ private:
             plot3D->setAutoSize(false);
             plot3D->setSize(QSizeF(rect.size.x, rect.size.y));
             plot3D->render();
+        } else if (QImPlotNode* plot2D = qobject_cast< QImPlotNode* >(node)) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotMinSize, ImVec2(1.0f, 1.0f));
+            plot2D->render();
+            ImPlot::PopStyleVar();
         } else {
             node->render();
         }
