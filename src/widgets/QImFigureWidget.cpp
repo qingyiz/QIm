@@ -1350,8 +1350,17 @@ void QImFigureWidget::initializeGL()
 {
     QIM_D(d);
     QIM::QImWidget::initializeGL();
+    if (d->m_context3D) {
+        ImPlot3D::DestroyContext(d->m_context3D);
+        d->m_context3D = nullptr;
+    }
+    if (d->m_context) {
+        ImPlot::DestroyContext(d->m_context);
+        d->m_context = nullptr;
+    }
     d->m_context = ImPlot::CreateContext();
     d->m_context3D = ImPlot3D::CreateContext();
+    d->m_theme.mark_dirty();
     // 默认有个subplot
 }
 

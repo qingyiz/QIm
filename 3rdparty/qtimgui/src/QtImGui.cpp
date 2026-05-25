@@ -11,21 +11,20 @@ namespace QtImGui {
 class QWindowWrapper : public WindowWrapper
 {
 public:
-  QWindowWrapper(ImGuiRenderer* r) 
-    : r(r)
+  QWindowWrapper(ImGuiRenderer* r, bool ownsRenderer) 
+    : r(r), ownsRenderer(ownsRenderer)
   {}
-  ~QWindowWrapper() {
-    if (r && (r != ImGuiRenderer::instance())) {
-      delete r;
-    }
-  }
 
 public:
   void newFrame() { r->newFrame(); }
 
   void render() { r->render(); }
+
+  ImGuiRenderer* renderer() const { return r; }
+  bool ownsRendererInstance() const { return ownsRenderer; }
 private:
   ImGuiRenderer* r;
+  bool ownsRenderer;
 };
 
 #ifdef QT_WIDGETS_LIB
@@ -34,8 +33,8 @@ namespace {
 
 class QWidgetWindowWrapper : public QWindowWrapper {
 public:
-    QWidgetWindowWrapper(QWidget *w, ImGuiRenderer* r) 
-      : QWindowWrapper(r), w(w)
+    QWidgetWindowWrapper(QWidget *w, ImGuiRenderer* r, bool ownsRenderer) 
+      : QWindowWrapper(r, ownsRenderer), w(w)
     {}
     void installEventFilter(QObject *object) override {
         return w->installEventFilter(object);
@@ -87,12 +86,12 @@ private:
 
 RenderRef initialize(QWidget *window, bool defaultRender) {
   if (defaultRender) {
-    auto* wrapper = new QWidgetWindowWrapper(window, ImGuiRenderer::instance());
+    auto* wrapper = new QWidgetWindowWrapper(window, ImGuiRenderer::instance(), false);
     ImGuiRenderer::instance()->initialize(wrapper);
     return reinterpret_cast<RenderRef>(dynamic_cast<QWindowWrapper*>(wrapper));
   } else {
     auto* render = new ImGuiRenderer();
-    auto* wrapper = new QWidgetWindowWrapper(window, render);
+    auto* wrapper = new QWidgetWindowWrapper(window, render, true);
     render->initialize(wrapper);
     return reinterpret_cast<RenderRef>(dynamic_cast<QWindowWrapper*>(wrapper));
   }
@@ -104,8 +103,8 @@ namespace {
 
 class QWindowWindowWrapper : public QWindowWrapper {
 public:
-    QWindowWindowWrapper(QWindow *w, ImGuiRenderer* r) 
-      : QWindowWrapper(r), w(w)
+    QWindowWindowWrapper(QWindow *w, ImGuiRenderer* r, bool ownsRenderer) 
+      : QWindowWrapper(r, ownsRenderer), w(w)
     {}
     void installEventFilter(QObject *object) override {
         return w->installEventFilter(object);
@@ -157,15 +156,27 @@ private:
 
 RenderRef initialize(QWindow* window, bool defaultRender) {
   if (defaultRender) {
-    auto* wrapper = new QWindowWindowWrapper(window, ImGuiRenderer::instance());
+    auto* wrapper = new QWindowWindowWrapper(window, ImGuiRenderer::instance(), false);
     ImGuiRenderer::instance()->initialize(wrapper);
     return reinterpret_cast<RenderRef>(dynamic_cast<QWindowWrapper*>(wrapper));
   }
   else {
     auto* render = new ImGuiRenderer();
-    auto* wrapper = new QWindowWindowWrapper(window, render);
+    auto* wrapper = new QWindowWindowWrapper(window, render, true);
     render->initialize(wrapper);
     return reinterpret_cast<RenderRef>(dynamic_cast<QWindowWrapper*>(wrapper));
+  }
+}
+
+void shutdown(RenderRef ref) {
+  if (!ref) {
+    return;
+  }
+
+  auto wrapper = reinterpret_cast<QWindowWrapper*>(ref);
+  ImGuiRenderer* renderer = wrapper->renderer();
+  if (renderer && wrapper->ownsRendererInstance()) {
+    delete renderer;
   }
 }
 

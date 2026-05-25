@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QOpenGLContext>
 #include <QPointer>
 // imguis
 #include "QtImGui.h"
@@ -95,6 +96,8 @@ public:
     void adaptiveTimer();
     //
     bool canRequestRender() const;
+    //
+    void clearCurrentFramebuffer() const;
 
 public:
     //----------------------------------------------------
@@ -353,6 +356,26 @@ void QImWidget::PrivateData::adaptiveTimer()
     }
 }
 
+void QImWidget::PrivateData::clearCurrentFramebuffer() const
+{
+    if (!q_ptr || q_ptr->width() <= 0 || q_ptr->height() <= 0) {
+        return;
+    }
+
+    const qreal dpr = q_ptr->devicePixelRatioF();
+    const int framebufferWidth = qMax(1, qRound(static_cast< qreal >(q_ptr->width()) * dpr));
+    const int framebufferHeight = qMax(1, qRound(static_cast< qreal >(q_ptr->height()) * dpr));
+    QOpenGLContext* context = QOpenGLContext::currentContext();
+    if (!context) {
+        return;
+    }
+    QOpenGLFunctions* functions = context->functions();
+    functions->glViewport(0, 0, framebufferWidth, framebufferHeight);
+    functions->glClearColor(backgroundColor.redF(), backgroundColor.greenF(), backgroundColor.blueF(), backgroundColor.alphaF());
+    functions->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    functions->glFlush();
+}
+
 #ifdef QIM_ENABLE_DEBUG_PRINT_FPS
 
 void QImWidget::PrivateData::updateFPSStatistics()
@@ -514,6 +537,9 @@ void QImWidget::PrivateData::drawFPSToast()
 
 QImWidget::QImWidget(QWidget* parent, Qt::WindowFlags f) : QOpenGLWidget(parent, f), QIM_PIMPL_CONSTRUCT
 {
+    setAutoFillBackground(false);
+    setAttribute(Qt::WA_NoSystemBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, true);
     d_ptr->initialize();
     d_ptr->isConstructing = false;
     d_ptr->applyRenderMode();
@@ -526,6 +552,11 @@ QImWidget::~QImWidget()
     d->renderRequestPending = false;
     if (d->timer && d->timer->isActive()) {
         d->timer->stop();
+    }
+    if (d->imguiRenderRef) {
+        QtImGui::shutdown(d->imguiRenderRef);
+        d->imguiRenderRef = nullptr;
+        d->imguiContext = nullptr;
     }
 }
 
@@ -703,15 +734,37 @@ void QImWidget::initializeGL()
 {
     QIM_D(d);
     initializeOpenGLFunctions();
+    if (d->imguiRenderRef) {
+        QtImGui::shutdown(d->imguiRenderRef);
+        d->imguiRenderRef = nullptr;
+        d->imguiContext = nullptr;
+    }
     d->imguiRenderRef = QtImGui::initialize(this, false);  // 这里每个窗口一个上下文，必须传入false
     d->imguiContext   = ImGui::GetCurrentContext();
     d->glInitialized  = true;
-    connect(d->timer, &QTimer::timeout, this, &QImWidget::requestRender);
+    d->isNeedAddFont = true;
+    d->styleColorTheme.mark_dirty();
+    d->clearCurrentFramebuffer();
+    d->renderScheduler.requestFollowupFrames(3);
+    connect(d->timer, &QTimer::timeout, this, &QImWidget::requestRender, Qt::UniqueConnection);
+}
+
+void QImWidget::resizeGL(int w, int h)
+{
+    Q_UNUSED(w)
+    Q_UNUSED(h)
+    QIM_D(d);
+    d->clearCurrentFramebuffer();
+    d->renderScheduler.requestFollowupFrames(2);
+    requestRender();
 }
 
 void QImWidget::paintGL()
 {
     QIM_D(d);
+    if (d->imguiContext) {
+        ImGui::SetCurrentContext(d->imguiContext);
+    }
     // 检查是否需要渲染
     // if (d->lastRenderTime.isValid()) {
     //     if (d->lastRenderTime.elapsed() < d->minRenderInterval) {
@@ -807,7 +860,10 @@ bool QImWidget::event(QEvent* e)
     switch (e->type()) {
     case QEvent::WindowActivate:
     case QEvent::WindowDeactivate:
+    case QEvent::ParentChange:
+    case QEvent::ShowToParent:
         requestRenderAlways = true;
+        d->renderScheduler.requestFollowupFrames(3);
         break;
     case QEvent::Hide:
         d->timer->stop();  // 隐藏时停止渲染

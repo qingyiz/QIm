@@ -138,6 +138,7 @@ protected:
     void resetRootRenderNode(QImAbstractNode* node);
     // 初始化GL，重写此方法理论上都应该调用QImWidget::initializeGL()进行imgui的初始化，否则会异常
     void initializeGL() override;
+    void resizeGL(int w, int h) override;
     void paintGL() override;
     void changeEvent(QEvent* e) override;
     bool event(QEvent* e) override;
